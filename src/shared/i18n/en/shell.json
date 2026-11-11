@@ -96,6 +96,8 @@
   "settings.noLimit": "No limit",
   "settings.memoryRecall": "Memories recalled in a scene",
   "settings.memoryRecallTitle": "How many of her memories of you she is told, the most important first. More keeps her truer to your past and makes every prompt longer.",
+  "settings.newsWebSearch": "Search the web for news",
+  "settings.newsWebSearchTitle": "The day's news re-tells a real story from the web, using the Main LLM's model with \":online\" added (nano-gpt and OpenRouter offer it). Off, or where the model has no such form, the news is made up.",
   "settings.reasoning": "Thinking",
   "settings.reasoningDefault": "Model default",
   "settings.reasoningOff": "Off",
@@ -552,5 +554,7 @@
   "app.quit": "Quit to desktop",
   "app.log": "Log",
   "app.nothingSaid": "Nothing has been said yet.",
-  "app.lastPrompt": "System prompt sent for the last message"
+  "app.lastPrompt": "System prompt sent for the last message",
+  "app.newsToast": "News: {headline}",
+  "app.newsFailed": "The day's news could not be written: {message}"
 }

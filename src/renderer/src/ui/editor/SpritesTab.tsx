@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { framingFor, nsfwPrompt, sizeFor, spritePrompt } from '../../../../shared/comfy'
+import { backgroundPrompt, birthPrompt, framingFor, nsfwPrompt, sizeFor, spritePrompt, walkPrompt } from '../../../../shared/comfy'
 import { isSafeId, slugify } from '../../../../shared/editor'
 import { facesOf, isPregnantPose, posesOf, outfitDescription, SKIN_TONES, STANDARD_OUTFITS, type Animation, type SkinTone, type Looks, type LoveInterest, type Outfit } from '../../../../shared/model'
 import { errorMessage } from '../../errors'
@@ -15,9 +15,10 @@ import { Group, Text } from './fields'
 import { EmptySlot, PictureSlot, SlotGrid } from './slots'
 import { t } from '../../../../shared/i18n'
 import { GAME_OUTFITS, gameOutfit } from '../../../../shared/game/gameOutfits'
+import { babyTonesOf } from '../../../../shared/game/skin'
 
 /** What the sprite editor needs of a character: a love interest and an NPC both have it. */
-type SpriteOwner = Pick<LoveInterest, 'id' | 'name' | 'pronouns' | 'appearance' | 'outfits' | 'defaultOutfitId' | 'faceY' | 'stageHeight' | 'animations' | 'tonedAnimations' | 'imageSeed' | 'birthPictures' | 'walkSprite' | 'room'>
+type SpriteOwner = Pick<LoveInterest, 'id' | 'name' | 'pronouns' | 'appearance' | 'outfits' | 'defaultOutfitId' | 'faceY' | 'stageHeight' | 'animations' | 'tonedAnimations' | 'imageSeed' | 'birthPictures' | 'walkSprite' | 'room' | 'skinTone' | 'ownBabyTone' | 'babyTint'>
 
 interface Props {
   draft: SpriteOwner
@@ -39,6 +40,16 @@ const NSFW_PREGNANT_BATCH = '(nsfw-pregnant)'
 const CLIPS_BATCH = '(clips)'
 // What the run that makes her pictures smaller is filed under.
 const OPTIMIZE_BATCH = '(optimize)'
+// And the run that draws every picture she lacks.
+const ALL_BATCH = '(all)'
+
+/** One picture of the run that draws all she lacks. */
+type AllJob =
+  | { kind: 'sprite'; outfitId: string; face: string }
+  | { kind: 'walk' }
+  | { kind: 'room' }
+  | { kind: 'birth'; tone: SkinTone }
+  | { kind: 'pose'; tone: SkinTone; pose: { id: string; name: string; draws: string; manShown?: boolean } }
 
 /** A name not already taken in the list, made from the wanted one: "happy", "happy-2"... */
 function unique(wanted: string, taken: string[]): string {
@@ -373,6 +384,82 @@ export function SpritesTab({ draft, set, plain, eventOutfits = [], looks = NO_LO
     if (failed.length > 0) setNotice(t('editor.common.stoppedAt', { name: failed[0] }))
   }
 
+  /**
+   * Every picture a new character needs that she does not have, drawn one after another on her seed and put on her as
+   * each arrives, from her fields and descriptions alone: the faces of the outfits she wears through a day, the neutral
+   * face of those the game puts her in, her walking profile, her room by day, her birth pictures, and her sex-acts with
+   * a man of each tone. An outfit with nothing written of it is passed over, and so is one that borrows another's
+   * pictures. Clips are left to their own button: they are slow, and made from these.
+   */
+  async function generateAll() {
+    const who = latest.current
+    const has = (outfitId: string, face: string) => face in (who.outfits.find((o) => o.id === outfitId)?.sprites ?? {})
+    const drawable = (outfit: Outfit) => !outfit.babyTone && outfit.fallback === undefined && (outfit.description.trim() !== '' || outfit.inherits !== undefined)
+    // Her usual clothes first, and their neutral face first of all: the picture everything else is judged by.
+    const outfits = who.outfits.filter(drawable).sort((a, b) => Number(b.id === who.defaultOutfitId) - Number(a.id === who.defaultOutfitId))
+    const sprites = outfits.flatMap((outfit) =>
+      (isEventOutfit(outfit) ? ['neutral'] : ['neutral', ...faces.filter((face) => face !== 'neutral')]).filter((face) => !has(outfit.id, face)).map((face): AllJob => ({ kind: 'sprite', outfitId: outfit.id, face }))
+    )
+    const jobs: AllJob[] = [
+      ...sprites.filter((job) => job.kind === 'sprite' && job.face === 'neutral' && job.outfitId === who.defaultOutfitId),
+      ...sprites.filter((job) => !(job.kind === 'sprite' && job.face === 'neutral' && job.outfitId === who.defaultOutfitId)),
+      ...(plain || who.walkSprite ? [] : [{ kind: 'walk' as const }]),
+      ...(who.room && who.room.description.trim() !== '' && !who.room.images?.day ? [{ kind: 'room' as const }] : []),
+      ...(plain ? [] : babyTonesOf(who).filter((tone) => !who.birthPictures[tone]).map((tone): AllJob => ({ kind: 'birth', tone }))),
+      ...(plain
+        ? []
+        : SKIN_TONES.flatMap((tone) =>
+            // The man is drawn in each tone; a pose he is not in is the same for every tone, and is drawn once.
+            slots.all.filter((pose) => (tone === 'light' || pose.manShown !== false) && !posesIn(who, tone).find((one) => one.id === pose.id)?.image).map((pose): AllJob => ({ kind: 'pose', tone, pose }))
+          ))
+    ]
+    if (jobs.length === 0) {
+      setNotice(t('editor.sprites.allDrawn'))
+      return
+    }
+    setNotice('')
+    const settings = await window.api.comfy.getSettings()
+    const owner = who.id
+    const put = forOwner(owner)
+    const label = (job: AllJob): string =>
+      job.kind === 'sprite'
+        ? `${latest.current.outfits.find((o) => o.id === job.outfitId)?.name ?? job.outfitId} · ${job.face}`
+        : job.kind === 'pose'
+          ? `${job.pose.name}${job.tone === 'light' ? '' : ` (${job.tone})`}`
+          : job.kind === 'birth'
+            ? `${t('editor.sprites.allBirth')} (${job.tone})`
+            : t(job.kind === 'walk' ? 'editor.sprites.walking' : 'editor.sprites.allRoom')
+    const { failed } = await run(ALL_BATCH, t('editor.common.drawing'), jobs, label, async (job) => {
+      const stopped = gone(owner)
+      if (stopped) return stopped
+      const now = latest.current
+      const art = (kind: 'sprite' | 'walk' | 'background' | 'birth' | 'nsfw', name: string, positive: string) =>
+        window.api.comfy.generate({ kind, subjectId: now.id, name, positive, ...sizeFor(settings, kind), seed: now.imageSeed })
+      const result =
+        job.kind === 'sprite'
+          ? await art('sprite', `${job.outfitId}-${job.face}`, spritePrompt(now, job.outfitId, job.face, framingFor(settings, 'sprite'), drawsFace(job.face)))
+          : job.kind === 'walk'
+            ? await art('walk', 'walk', walkPrompt(now, framingFor(settings, 'walk')))
+            : job.kind === 'room'
+              ? await art('background', 'room-day', backgroundPrompt({ name: '', appearance: now.room?.description ?? '', indoors: true }, '', 'day', framingFor(settings, 'background')))
+              : job.kind === 'birth'
+                ? await art('birth', `birth-${job.tone}`, birthPrompt(now, framingFor(settings, 'birth'), job.tone))
+                : await art('nsfw', job.tone === 'light' ? `nsfw-${job.pose.id}` : `nsfw-${job.tone}-${job.pose.id}`, nsfwPrompt(now, job.pose.draws, framingFor(settings, 'nsfw'), isPregnantPose(job.pose.id), job.pose.manShown === false ? undefined : job.tone))
+      // Without a working ComfyUI the rest would fail the same way.
+      if (!result.ok || !result.path) return { ok: false, message: result.message, fatal: true }
+      const path = result.path
+      // Onto the draft as it is now, so nothing edited while this ran is lost.
+      const current = latest.current
+      if (job.kind === 'sprite') put({ outfits: current.outfits.map((outfit) => (outfit.id === job.outfitId ? { ...outfit, sprites: { ...outfit.sprites, [job.face]: { image: path, description: '' } } } : outfit)) })
+      else if (job.kind === 'walk') put({ walkSprite: path })
+      else if (job.kind === 'room' && current.room) put({ room: { ...current.room, images: { ...current.room.images, day: path } } })
+      else if (job.kind === 'birth') put({ birthPictures: { ...current.birthPictures, [job.tone]: path } })
+      else if (job.kind === 'pose') setPose(job.pose.id, { image: path }, put, job.tone)
+      return { ok: true }
+    })
+    if (failed.length > 0) setNotice(t('editor.common.stoppedAt', { name: failed[0] }))
+  }
+
   // The picture being looked at, among the others of its outfit, in the order they are shown.
   const viewedOutfit = draft.outfits.find((o) => o.id === viewing?.outfitId)
   const viewedAll = viewedOutfit ? ordered(viewedOutfit) : []
@@ -550,6 +637,14 @@ export function SpritesTab({ draft, set, plain, eventOutfits = [], looks = NO_LO
             onChange={(description) => setOutfit(index, { description })}
             rows={outfit.inherits ? 2 : 3}
             placeholder={outfit.inherits ? t('editor.sprites.addsPlaceholder') : t('editor.sprites.wearingPlaceholder')}
+          />
+          <Text
+            label={t('editor.sprites.llmDescription')}
+            value={outfit.llmDescription ?? ''}
+            // Left empty it is left out of her file, and one that builds on another goes by its parent's.
+            onChange={(text) => setOutfit(index, { llmDescription: text.trim() === '' ? undefined : text })}
+            rows={2}
+            placeholder={outfit.inherits ? t('editor.sprites.llmDescriptionInherits') : t('editor.sprites.llmDescriptionPlaceholder')}
           />
           <label>
             {t('editor.sprites.pictures')}
@@ -751,6 +846,14 @@ export function SpritesTab({ draft, set, plain, eventOutfits = [], looks = NO_LO
 
       <div className="outfit-actions">
         <Button
+          variant="primary"
+          disabled={!ready || batch !== null || draft.appearance.trim() === ''}
+          title={t('editor.sprites.generateAllTitle')}
+          onClick={() => void generateAll()}
+        >
+          {t('editor.sprites.generateAll')}
+        </Button>
+        <Button
           disabled={!ready || batch !== null || pngs.length === 0}
           title={t('editor.sprites.optimizeTitle')}
           onClick={optimize}
@@ -759,6 +862,7 @@ export function SpritesTab({ draft, set, plain, eventOutfits = [], looks = NO_LO
         </Button>
       </div>
       <BatchProgress batch={batch} at={OPTIMIZE_BATCH} onStop={stop} />
+      <BatchProgress batch={batch} at={ALL_BATCH} onStop={stop} />
 
       <Group title={t('editor.sprites.portrait')} hint={t('editor.sprites.portraitHint')}>
         <div className="portrait-crop">

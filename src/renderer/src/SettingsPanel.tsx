@@ -45,13 +45,14 @@ interface ProfileForm extends LlmProfileView {
   clearKey: boolean
 }
 
-type Form = Record<LlmProfileId, ProfileForm> & { memoryRecall: number }
+type Form = Record<LlmProfileId, ProfileForm> & { memoryRecall: number; newsWebSearch: boolean }
 
 function toForm(view: SettingsView): Form {
   return {
     main: { ...view.main, apiKeyInput: '', clearKey: false },
     nsfw: { ...view.nsfw, apiKeyInput: '', clearKey: false },
-    memoryRecall: view.memoryRecall
+    memoryRecall: view.memoryRecall,
+    newsWebSearch: view.newsWebSearch
   }
 }
 
@@ -195,7 +196,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
       // Leaving the field blank keeps the saved key.
       return { ...rest, apiKey: clearKey ? '' : apiKeyInput || undefined }
     }
-    const view = await window.api.saveSettings({ main: update(form.main), nsfw: update(form.nsfw), memoryRecall: form.memoryRecall })
+    const view = await window.api.saveSettings({ main: update(form.main), nsfw: update(form.nsfw), memoryRecall: form.memoryRecall, newsWebSearch: form.newsWebSearch })
     setForm(toForm(view))
   }
 
@@ -405,6 +406,10 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             value={form.memoryRecall}
             onChange={(e) => setForm({ ...form, memoryRecall: Math.max(1, Math.round(e.target.valueAsNumber || 1)) })}
           />
+        </label>
+        <label className="inline" title={t('shell.settings.newsWebSearchTitle')}>
+          <input type="checkbox" checked={form.newsWebSearch} onChange={(e) => setForm({ ...form, newsWebSearch: e.target.checked })} />
+          {t('shell.settings.newsWebSearch')}
         </label>
         <div className="actions">
           <button type="submit" disabled={busy}>

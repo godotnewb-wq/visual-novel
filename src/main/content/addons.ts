@@ -10,6 +10,8 @@ import {
   ActPromptsSchema,
   NSFW_POSES,
   GroupSchema,
+  CanonEventSchema,
+  type CanonEvent,
   groupFiles,
   CustomActSchema,
   CustomExpressionSchema,
@@ -50,6 +52,7 @@ const LOCATIONS_FILE = 'locations.json'
 const TRAITS_FILE = 'traits.json'
 const LOOKS_FILE = 'looks.json'
 const GROUPS_FILE = 'groups.json'
+const CANON_FILE = 'canon.json'
 const CATALOGUE_FILE = 'catalogue.json'
 const CURRICULUM_FILE = 'curriculum.json'
 const NEW_GAME_FILE = 'new-game.json'
@@ -116,6 +119,20 @@ function readAddonGroups(addonDir: string, issues: string[]): unknown[] {
     return raw
   } catch (error) {
     issues.push(t('editor.addons.issue', { path: GROUPS_FILE, message: (error as Error).message }))
+    return []
+  }
+}
+
+/** The events of the add-on folder's `canon.json`, as raw JSON. One that can't be read is reported, not thrown. */
+function readAddonCanon(addonDir: string, issues: string[]): unknown[] {
+  const path = join(addonDir, CANON_FILE)
+  if (!existsSync(path)) return []
+  try {
+    const raw = readJsonFile(path) as { events?: unknown }
+    if (!Array.isArray(raw.events)) throw new Error(t('editor.addons.notCanon'))
+    return raw.events
+  } catch (error) {
+    issues.push(t('editor.addons.issue', { path: CANON_FILE, message: (error as Error).message }))
     return []
   }
 }
@@ -327,17 +344,30 @@ export function loadWithAddons(packDir: string, addonDir: string, languageDir?: 
     traits: overlay(baseTraits, traits),
     loveInterests: overlay(baseLoveInterests, loveInterests as LoveInterest[])
   })
+  // Each is tried on its own, in the order of the files, so a friend or enemy of hers who is another of the player's own
+  // may not have been tried yet: she is tried without those ties, and they are given back once everyone is in, to
+  // whoever of them is.
+  const ties = new Map<string, { friends: string[]; enemies: string[] }>()
   for (const { file, raw: read } of readAddonFiles(addonDir, LOVE_INTERESTS, issues)) {
     try {
       const id = (read as Partial<WithId>).id
       if (typeof id !== 'string' || !isSafeId(id)) throw new Error(t('editor.addons.idMissing'))
       // One of the game's own, as an older version of it was saved: brought up to date with what she has now.
-      const raw = upToDate(read, baseLoveInterests.find((li) => li.id === id))
-      validateContentPack(pack([...accepted, raw]))
-      accepted.push(raw as LoveInterest)
+      const raw = upToDate(read, baseLoveInterests.find((li) => li.id === id)) as Partial<LoveInterest>
+      const here = new Set([...baseLoveInterests, ...accepted].map((li) => li.id))
+      const own = { friends: raw.friends ?? [], enemies: raw.enemies ?? [] }
+      const untied = { ...raw, friends: own.friends.filter((one) => here.has(one)), enemies: own.enemies.filter((one) => here.has(one)) }
+      validateContentPack(pack([...accepted, untied]))
+      accepted.push(untied as LoveInterest)
+      ties.set(id, own)
     } catch (error) {
       issues.push(t('editor.addons.fileLeftOut', { file, message: (error as Error).message }))
     }
+  }
+  const everyoneIn = new Set([...baseLoveInterests, ...accepted].map((li) => li.id))
+  for (const [i, who] of accepted.entries()) {
+    const own = ties.get(who.id)
+    if (own) accepted[i] = { ...who, friends: own.friends.filter((one) => everyoneIn.has(one)), enemies: own.enemies.filter((one) => everyoneIn.has(one)) }
   }
 
   // Groups come after the characters they are of. Each is tried on its own, as a character is.
@@ -356,6 +386,22 @@ export function loadWithAddons(packDir: string, addonDir: string, languageDir?: 
     }
   }
   const groups = overlay(baseGroups, acceptedGroups)
+
+  // Canon events, each tried on its own: one of the add-on's own id takes the place of the game's.
+  const baseCanon = ((base as { canon?: { events?: unknown } }).canon?.events ?? []) as CanonEvent[]
+  const acceptedCanon: CanonEvent[] = []
+  for (const raw of readAddonCanon(addonDir, issues)) {
+    const parsed = CanonEventSchema.safeParse(raw)
+    try {
+      if (!parsed.success) throw new Error(parsed.error.issues[0]?.message)
+      validateContentPack({ ...pack(accepted), groups, canon: { events: overlay(baseCanon, [...acceptedCanon, parsed.data]) } })
+      acceptedCanon.push(parsed.data)
+    } catch (error) {
+      const id = (raw as Partial<WithId> | null)?.id
+      issues.push(t('editor.addons.canonLeftOut', { file: CANON_FILE, id: typeof id === 'string' ? id : '?', message: (error as Error).message }))
+    }
+  }
+  const canon = { events: overlay(baseCanon, acceptedCanon) }
 
   // The course catalogue built in the editor. One that can't be read is as good as none: it is built again there.
   let catalogue: unknown
@@ -385,7 +431,7 @@ export function loadWithAddons(packDir: string, addonDir: string, languageDir?: 
 
   let content: ContentPack
   try {
-    content = validateContentPack({ ...pack(accepted), groups, ...(catalogue !== undefined && { catalogue }), ...(newGame !== undefined && { newGame }) })
+    content = validateContentPack({ ...pack(accepted), groups, canon, ...(catalogue !== undefined && { catalogue }), ...(newGame !== undefined && { newGame }) })
   } catch (error) {
     // The add-on traits broke something in the base pack (a trait a character uses, say). Go without add-ons.
     issues.push(t('editor.addons.allLeftOut', { message: (error as Error).message }))
@@ -853,7 +899,14 @@ export function importAsset(addonDir: string, loveInterestId: string, sourcePath
  */
 export function removeUnusedAssets(
   addonDir: string,
-  who: Pick<LoveInterest, 'id' | 'outfits' | 'animations'> & { tonedAnimations?: Partial<Record<string, Animation[]>>; room?: { images?: Partial<Record<string, string>> }; birthPictures?: Partial<Record<string, string>>; walkSprite?: string },
+  who: Pick<LoveInterest, 'id' | 'outfits' | 'animations'> & {
+    tonedAnimations?: Partial<Record<string, Animation[]>>
+    room?: { images?: Partial<Record<string, string>> }
+    birthPictures?: Partial<Record<string, string>>
+    walkSprite?: string
+    reactions?: Record<string, string>
+    catchphrases?: Record<string, string>
+  },
   prefix: string = ADDON_PREFIX
 ): string[] {
   if (!isSafeId(who.id)) return []
@@ -864,7 +917,10 @@ export function removeUnusedAssets(
       ...Object.values(who.tonedAnimations ?? {}).flatMap((poses) => (poses ?? []).flatMap((pose) => poseMedia(pose))),
       ...Object.values(who.room?.images ?? {}),
       ...Object.values(who.birthPictures ?? {}),
-      who.walkSprite
+      who.walkSprite,
+      // Her voice is kept with her pictures: a pack brings it into her folder.
+      ...Object.values(who.reactions ?? {}),
+      ...Object.values(who.catchphrases ?? {})
     ].filter((path): path is string => typeof path === 'string')
   )
   const removed: string[] = []

@@ -2,6 +2,7 @@ import type { Appointment, ContentPack, CourierNote, GameState, Proposal } from 
 import { acceptProposal, allFree, attendees, describeWhen, proposeMeeting, upcomingAppointments } from './appointments'
 import { toDate } from './calendar'
 import { handleOf, unreadPosts } from './feed'
+import { unreadNews } from './news'
 import { bondOf, statusOf } from './bonds'
 import { addMemory } from './memory'
 import { appealLevel } from './stats'
@@ -78,9 +79,9 @@ export function unreadNotes(state: GameState, loveInterestId?: string): number {
   return threads.flat().filter((note) => !note.read).length
 }
 
-/** Everything new on his phone, for the badge on it: messages unread, in DMs and group chats, and posts on the feed unseen. */
+/** Everything new on his phone, for the badge on it: messages unread, in DMs and group chats, posts on the feed unseen, and the news unread. */
 export function phoneUnread(state: GameState): number {
-  return unreadNotes(state) + unreadPosts(state)
+  return unreadNotes(state) + unreadPosts(state) + unreadNews(state)
 }
 
 /** A group chat started, with those in it besides him, and nothing said yet; one already there is left as it is. */

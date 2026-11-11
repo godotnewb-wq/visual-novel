@@ -4,7 +4,7 @@ import { dirname, extname, join, resolve, sep } from 'node:path'
 import { z } from 'zod'
 import { chatCompletion, listModels } from './ai/openai'
 import { completeWithFallback, notConfigured } from './ai/router'
-import { catchphraseIn, firstNames, firstToSpeak, leavers, lookLines, namesHer, parseDirectives, sceneCast, sceneWitnesses, sexWrittenOf, validLook, whoSpoke } from '../shared/game/scene'
+import { catchphraseAt, firstNames, firstToSpeak, leavers, lookLines, namesHer, parseDirectives, sceneCast, sceneWitnesses, sexWrittenOf, validLook, whoSpoke } from '../shared/game/scene'
 import { canSleepOver } from '../shared/game/sleep'
 import { sexGate } from '../shared/game/intimacy'
 import { sceneRelicUses } from '../shared/game/relics'
@@ -25,6 +25,7 @@ import { AchievementStore } from './achievements/store'
 import { SettingsStore, type KeyCipher } from './settings/store'
 import { RenameSaveRequestSchema, SaveRequestSchema, SlotIdSchema } from '../shared/saves'
 import { contactsSaid, DM_CLOSE, DM_OPEN, fallbackInvite, messageText } from '../shared/game/courier'
+import { buildNewsPrompt, parseNewsReply } from '../shared/game/news'
 import { buildFeedPrompt, buildScenePhotoPrompt, draftPosts, feedReplyTokens, feedShortfall, parseFeedReply, parseScenePhoto, PLAYER_POSTER, scenePhotoDraft } from '../shared/game/feed'
 import { toDate } from '../shared/game/calendar'
 import { attendableEvents, buildEventPrompt, parseGeneratedEvents } from '../shared/game/events'
@@ -42,6 +43,7 @@ import { banterDue, buildBanterPrompt, parseBanter } from '../shared/game/banter
 import { buildMomentPrompt, parseMomentLines } from '../shared/game/momentLines'
 import { personalise } from '../shared/game/personalise'
 import { withHousing } from '../shared/game/housing'
+import { withCanon } from '../shared/game/canon'
 import { withSkinTone } from '../shared/game/skin'
 import { buildCharacterPrompt, clockNote, sceneTurns } from '../shared/game/prompt'
 import { CHAT_CANCELLED, IPC } from '../shared/ipc'
@@ -87,6 +89,9 @@ import {
   type FeedPictureResponse,
   FeedRequestSchema,
   type FeedResponse,
+  NewsRequestSchema,
+  NewsPictureRequestSchema,
+  type NewsResponse,
   type ScenePhotoResponse,
   type SelfieResponse,
   PlanOutingRequestSchema,
@@ -261,7 +266,7 @@ function registerIpc(
   })
   /** The content as the game with this state reads it: the player's name filled in wherever the content wrote the token. */
   // And with the house he has been let in it or out of it, as his game has it.
-  const readBy = (state: Pick<GameState, 'player' | 'housing'>): ContentPack => withHousing(withSkinTone(personalise(content, state.player.name), state.player.skinTone), state)
+  const readBy = (state: Pick<GameState, 'player' | 'housing' | 'canonChanges'>): ContentPack => withHousing(withCanon(withSkinTone(personalise(content, state.player.name), state.player.skinTone), state), state)
   const baseTraitIds = () => Object.keys(info.traits).filter((id) => info.traits[id] !== 'addon')
 
   ipcMain.handle(IPC.getContent, () => content)
@@ -474,7 +479,7 @@ function registerIpc(
     pickedPack = null
     const { dir, files } = await unpackFiles(file, manifest)
     try {
-      let done: PackInstall = { installed: [], majors: [], notes: [] }
+      let done: PackInstall = { installed: [], majors: [], groups: [], notes: [] }
       const result = change(() => {
         done = installPack(info.addonDir, content, manifest, files, info.assetPrefix)
         return []
@@ -896,11 +901,11 @@ function registerIpc(
       hours: hoursPassed > 0 ? hoursPassed : undefined,
       look: li ? { ...fitted(validLook({ outfitId: look.outfitId, expression: look.expression }, li, scene), li), ...posed } : {},
       looks,
-      // Her catch phrases are recorded in English: in another language the reply around one is not, so only her
-      // wordless sounds are played.
-      voices: [reaction, npc || lang.language !== DEFAULT_LANGUAGE ? undefined : catchphraseIn(text, present.flatMap((id) => cast.loveInterests.filter((c) => c.id === id)), scene.loveInterestId)].filter(
-        (file): file is string => file !== undefined
-      )
+      voices: reaction ? [reaction] : [],
+      // A catch phrase is heard only where its own words are in her line, so its recording says what is written in any
+      // language: an English one is not heard in a Chinese reply, where it is not written, and Baixue's 帅哥 is. It is
+      // heard with the line it is said in, once the player has read on to it.
+      phrase: npc ? undefined : catchphraseAt(text, present.flatMap((id) => cast.loveInterests.filter((c) => c.id === id)), scene.loveInterestId)
     }
   })
 
@@ -1002,6 +1007,46 @@ function registerIpc(
     const { authorId, name, prompt } = FeedPictureRequestSchema.parse(raw)
     // Made by the game as it is played, not by the editor: it goes with the player's own files whatever is being edited.
     const made = await generateArt(comfy.get(), packDir, userDir, { kind: 'photo', subjectId: authorId, name, workflow: '', positive: prompt, negative: '', ...sizeFor(comfy.get(), 'photo') })
+    return made.ok ? { image: made.path } : { image: null, error: made.message }
+  })
+
+  // Never fails: the day's news story. A story from the wider world is looked up on the web where the player has turned
+  // that on (the model's ":online" form, as nano-gpt and OpenRouter offer it), and made up of the world's own where it
+  // is off, or the search fails; one of the player's own is written from what happened.
+  ipcMain.handle(IPC.news, async (_event, raw: unknown): Promise<NewsResponse> => {
+    const { state, plan } = NewsRequestSchema.parse(raw)
+    const content = readBy(state)
+    const all = settings.get()
+    if (!isConfigured(all.main)) return { error: notConfigured() }
+    const write = async (search: boolean): Promise<NewsResponse> => {
+      const { system, user } = buildNewsPrompt(content, state, plan, search ? { date: new Date().toISOString().slice(0, 10) } : undefined)
+      const input = { system, messages: [{ role: 'user' as const, content: user }] }
+      const reply = search
+        ? await chatCompletion({ ...all.main, model: all.main.model.endsWith(':online') ? all.main.model : `${all.main.model}:online` }, input)
+        : (await completeWithFallback(all, false, input)).reply
+      const written = parseNewsReply(reply)
+      if (!written) throw new Error(t('llm.news.unreadable'))
+      return { written, source: plan.kind === 'player' ? 'player' : search ? 'world' : 'invented' }
+    }
+    try {
+      // A real story is the kingdom's news; the University's paper writes of its own.
+      if (plan.kind === 'world' && plan.paper !== 'student' && all.newsWebSearch) {
+        try {
+          return await write(true)
+        } catch {
+          // A model with no web search, or a search that came to nothing: the world's own story instead.
+        }
+      }
+      return await write(false)
+    } catch (error) {
+      return { error: (error as Error).message }
+    }
+  })
+  // Never fails: the news picture, drawn only where ComfyUI is set up. A story runs without one otherwise.
+  ipcMain.handle(IPC.newsPicture, async (_event, raw: unknown): Promise<FeedPictureResponse> => {
+    const { name, prompt } = NewsPictureRequestSchema.parse(raw)
+    if (!comfyReady()) return { image: null }
+    const made = await generateArt(comfy.get(), packDir, userDir, { kind: 'photo', subjectId: 'news', name, workflow: '', positive: `${prompt}\n\n${framingFor(comfy.get(), 'photo')}`, negative: '', ...sizeFor(comfy.get(), 'photo') })
     return made.ok ? { image: made.path } : { image: null, error: made.message }
   })
 

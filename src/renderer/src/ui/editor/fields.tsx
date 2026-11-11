@@ -223,6 +223,7 @@ const CONDITION_KINDS: { type: Condition['type']; label: MessageKey }[] = [
   { type: 'pregnant', label: 'editor.fields.conditionPregnant' },
   { type: 'event', label: 'editor.fields.conditionEvent' },
   { type: 'day', label: 'editor.fields.conditionDay' },
+  { type: 'depth', label: 'editor.fields.conditionDepth' },
   { type: 'stat', label: 'editor.fields.conditionStat' },
   { type: 'flag', label: 'editor.fields.conditionFlag' }
 ]
@@ -239,6 +240,8 @@ function startingCondition(content: ContentPack, type: Condition['type']): Condi
     case 'event':
       return { type, eventId: content.calendar.events[0]?.id ?? '' }
     case 'day':
+      return { type, min: 1 }
+    case 'depth':
       return { type, min: 1 }
     case 'stat':
       return { type, stat: STATS[0], min: 12 }
@@ -312,6 +315,7 @@ export function ConditionsField({ content, label, value, onChange, hint }: Condi
             </select>
           )}
           {condition.type === 'day' && <input type="number" min={1} value={condition.min ?? 1} onChange={(e) => setAt(index, { ...condition, min: Math.max(1, number(e.target.value)) })} />}
+          {condition.type === 'depth' && <input type="number" min={1} value={condition.min} onChange={(e) => setAt(index, { ...condition, min: Math.max(1, number(e.target.value)) })} />}
           {condition.type === 'stat' && (
             <>
               <select value={condition.stat} onChange={(e) => setAt(index, { ...condition, stat: e.target.value })}>

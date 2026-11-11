@@ -255,8 +255,12 @@ courses, the player's start, locations, jobs, societies and ComfyUI.
   sex-acts, whole characters and majors, chosen character by character, to pass to another
   player, and the way to import one. It holds `pack.json` and the files it names under `files/`
   (`src/shared/packs.ts`, `src/main/content/packs.ts`); the added faces and acts its contents
-  are filed under go with it, and a whole character brings all her files, her traits, and any
-  major of a player's own she studies or teaches, with its college. A player can pack only
+  are filed under go with it, and a whole character brings all her files (her voice's recordings
+  among them), her traits, any major of a player's own she studies or teaches, with its college,
+  and the group scenes she is in whose other members are the game's own characters (a scene that
+  needs another of the player's own stays behind, and so do her ties to them). **Complete
+  Character Package** selects all of that in one go: a player's own character whole, or every
+  outfit, face and act of one of the game's, to be looked over before the pack is made. A player can pack only
   their own files (those under `addons/`), and as whole characters and majors only those they
   made; from source, everything. Importing shows what it would do first, and then saves each
   thing as the editor would: what a character has that the pack does not name stays, one not in
@@ -324,7 +328,7 @@ asked to write. The choice is kept in `settings.json` with the LLM profiles.
   to every system prompt (empty in English).
 - **Saves** keep text as it was written: memories written in one language stay in it.
 - **Names in replies.** The LLM is told (`core.llm.writeIn`) to keep characters' names in Latin letters and tags exactly; in case it does not, a language may give each character `aliases`, her name in its own script (the one field a translation may add), which `namesHer` and `namedAt` in `src/shared/game/scene.ts` also accept. A single Chinese character is never searched for inside text. Full-width brackets, colons and equals signs in a reply's tags are put in ASCII as it arrives (`plainTags`, in `src/main/ai/router.ts`), and speaker lines accept a full-width colon. `sexWrittenOf`, which has a reply written again when it writes sex of a woman who will not, reads the code's English words and the language's own (`scene.detect.sexWritten`, words for the acts separated by "|", empty in English).
-- **Voice** is recorded in English. A line written ahead is found by its exact words, so a translated one has no recording and plays silent; catch phrases play only in English (`src/main/index.ts`); wordless reactions play in every language.
+- **Voice** is recorded in English. A line written ahead is found by its exact words, so a translated one has no recording and plays silent; a catch phrase plays in any language where its own words are in her line (an English one is not written in a Chinese reply, so it is silent there; Baixue's 帅哥 is, so it plays), heard when that line is on screen; wordless reactions play in every language.
 - **The content editor** saves nothing while the game is in another language: what it
   shows is the translation, and saving would write it over the English.
 
@@ -733,6 +737,63 @@ asked to write. The choice is kept in `settings.json` with the LLM profiles.
   five more each time the reader scrolls to the end. The player can like a post or
   message its author. Her two latest posts that have gone up, and whether he liked them,
   are put into her prompt.
+- **News** (`src/shared/game/news.ts`, the phone's News app on its second page) is the day's
+  story of the Sown Expanse. As each day begins it is decided by rule (`newsRound`, guarded by
+  `newsDay`): something of the player's own not yet told takes the day (`milestones`, one a
+  day, the Queen's first: the Queen with his child, the royal birth, his first child, five,
+  ten and every love interest having carried his child, the Undercroft cleared; each told once,
+  `newsReported`; the first round of a game takes what he had done already as old news);
+  otherwise one day in two has a story from the wider world (the feed's seeded `roll`). Each
+  story is one of two papers' (`paper`): **The Seedblossom Herald**, the kingdom's, or **The
+  Cloister Courier**, the University's student paper. A story from the wider world is the
+  Herald's half the time; otherwise the Courier's, about one of the cast picked by the day's
+  luck from the students and teachers (`featuring`: her column, her invention, a profile; the
+  writer is given her bio and personality). His milestones go to the paper that would run
+  them: the Queen's, the royal birth and every woman's are the Herald's; his first child, five
+  and ten women, and the Undercroft are the Courier's. The plan (`newsPlan`) is written in the
+  background by the Main LLM (`ai:news`); only the Herald's stories look to the web. A story from the
+  wider world is looked up on the web where the player has turned on **Search the web for
+  news** in the settings (`newsWebSearch`): the Main LLM's model in its `:online` form, which
+  nano-gpt and OpenRouter offer, is asked for the day's most important real story re-told with
+  the Sown Expanse's own nations and people (`llm.news.search`, the real date given); off, or
+  if that fails, the story is the world's own (`llm.news.invent`). A picture is drawn where
+  ComfyUI is set up (`ai:newsPicture`, the Photo workflow); without it the story runs with
+  none. Filed with `fileNews` (the last 60 kept), it raises a toast and the app's unread badge
+  (`unreadNews`, counted in `phoneUnread`; opening the app reads it). The last three days of
+  news (`recentNews`) are put into every scene's and message's prompt beside the weather
+  (`scene.prompt.scene.news`): she has heard it, and brings it up only if it would matter to
+  her, or if he does.
+- **Canon events** (`content/default/canon.json`, `src/shared/model/canon.ts`,
+  `src/shared/game/canon.ts`) are the world's own story on its own days, going the way his game
+  has gone. An event is a run of steps; a step happens on a `day` of the game (from 1, as the
+  `day` condition counts) or `after` another step of its event, so many days after it happened
+  and only if it went by the case named. It goes by the first of its `cases` whose `when`
+  conditions hold (empty: otherwise; none holding, it waits for the next morning). A case can
+  run as news (`news`: paper, `featuring`, the `brief` the writer is given, and the milestones it
+  `covers`), apply `effects` (flags and the rest), give love interests `memories` (core by
+  default), and `changes` to a love interest for the rest of the game: role, bio, personality,
+  schedule, room in place of hers, backstory and instructions added after hers. `canonRound`
+  runs each morning before `newsRound` in the same idle effect (guarded by `canonDay`), each
+  step once (`canonFired`: its case and day); a step whose day passed while the game was not
+  played happens the next morning, and what follows it counts from then. Changes are kept in
+  `canonChanges` and put into the content by `withCanon`, in the pipeline beside `withHousing`.
+  Its news waits in `newsQueue` and runs one a day before anything else; one not written by
+  the next morning goes back to the head of the queue. A milestone a story still to come
+  `covers` (`canonCovers`) is held back until it has run, and counted as told when it does,
+  so the Queen's child is not news the week before the decree that tells of it. Add-ons merge
+  their own `canon.json` by event id; step ids are unique across events. The `depth` condition
+  (Undercroft depths cleared) was added for these. Shipped threads: the **Queen's decree** (day
+  45: already with his child, she says so and names him the next day; otherwise fourteen days to
+  conceive by him, or the Council brokers a "diplomatic seeding" with Joven Stormbreaker of the
+  Starkelands for after the first semester, flag `seraphine-brokered`: still Queen, she is told
+  what was agreed in her backstory and plays her dread and regret. The first morning after that
+  she carries his child, the treaty is cancelled (`treaty-cancelled`, a step with no otherwise
+  case, so it waits): the Herald's story is of a mysterious, unnamed True Sire and stands in for
+  the usual Queen-with-child one, and her backstory says it is behind her); the **record
+  assay** leak (day 10) and Joven Stormbreaker's challenge (day 12, Ottilie answers in print if
+  she is his friend); and the Courier's year: Tink's invention (30), Morwenna's column (65,
+  naming him if she is his lover), the Arena Finals (95, Daphne wins, Grushka referees), and
+  Vespera cited for her ward repairs (105, crediting the work below once three depths are clear).
 - **The player's own posts**: "Take a picture" in a scene's way-out menu (beside the send arrow,
   with the leave or end-of-class action and "Say goodbye", which says "Gotta go, goodbye!" and sums
   the scene up at once) has the LLM that writes the scene write a caption and a line of what the
@@ -1217,6 +1278,19 @@ and the adventurer's outfit of the echoes, each with its pregnant form), with no
 slots for the player to draw. One of these with no pictures is not yet hers (`drawn`): it is
 not drawn for her day nor offered to the LLM, and where a part asks for it she goes as she
 is. The Sprites tab's Event outfits offers to add any of them she does not have.
+
+An outfit's **LLM description** (`llmDescription`, optional) is for the AI alone: when she wears it, which the
+picture's description does not say ("once her outer clothes are off, before she is nude"). Where she has it, it is
+told beside the outfit in the scene prompt, alone with him and in a group (where otherwise only each outfit's id and
+name are listed); one that builds on another and has none goes by its parent's (`outfitUse`).
+
+**Generate all images**, at the top of the Media tab, sets up a new character from her fields and descriptions alone:
+one run, on her seed, of every picture she lacks (`generateAll` in `SpritesTab.tsx`). Her usual clothes' neutral face
+comes first; then every face of each outfit she wears through a day, the neutral face of each event outfit, her
+walking profile, her room by day, a birth picture for each tone a child of hers can have (`babyTonesOf`), and every
+sex-act with a man of each tone (a pose he is not in, once). An outfit with nothing written of it, or one that borrows
+another's pictures, is passed over; clips are left to their own button. Each picture is put on her as it arrives, and
+like any run it can be stopped, and started again to carry on from what is still missing.
 
 ## Art tool (ComfyUI)
 

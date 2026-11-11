@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { ADDON_PREFIX, isSafeId, type EditorInfo } from './editor'
-import { AnimationSchema, LooksSchema, LoveInterestSchema, MajorSchema, OutfitSchema, TraitSchema, basePoseId, poseMedia, posesOf, type Animation, type ContentPack, type LoveInterest, type Outfit } from './model'
+import { AnimationSchema, GroupSchema, LooksSchema, LoveInterestSchema, MajorSchema, OutfitSchema, TraitSchema, basePoseId, poseMedia, posesOf, type Animation, type ContentPack, type Group, type LoveInterest, type Outfit } from './model'
 
 /**
  * A pack: some of a character's pictures and clips, whole characters of a player's own, and subjects made in the editor,
@@ -10,8 +10,8 @@ import { AnimationSchema, LooksSchema, LoveInterestSchema, MajorSchema, OutfitSc
 export const PACK_MANIFEST = 'pack.json'
 const PACK_FORMAT = 1
 
-/** What a pack can hold: the pictures and clips the editor takes in. */
-export const PACK_MEDIA = ['.png', '.webp', '.jpg', '.jpeg', '.gif', '.mp4', '.webm']
+/** What a pack can hold: the pictures and clips the editor takes in, and the recordings of a character's voice. */
+export const PACK_MEDIA = ['.png', '.webp', '.jpg', '.jpeg', '.gif', '.mp4', '.webm', '.ogg', '.mp3', '.wav']
 
 /** Where a file is in a zip: one plain name in a folder of the character's. */
 const PACK_FILE = /^files\/[a-z0-9-]+\/[a-z0-9][a-z0-9._-]*$/
@@ -46,7 +46,9 @@ export const PackManifestSchema = z.object({
   /** Things for characters who are already in the game it goes to. */
   characters: z.array(PackedCharacterSchema),
   /** Whole characters, as the content has them. */
-  people: z.array(LoveInterestSchema.refine((who) => isSafeId(who.id)))
+  people: z.array(LoveInterestSchema.refine((who) => isSafeId(who.id))),
+  /** Group scenes its whole characters are in with the game's own characters, and nobody else. Older packs have none. */
+  groups: z.array(GroupSchema.refine((group) => isSafeId(group.id))).default([])
 })
 export type PackManifest = z.infer<typeof PackManifestSchema>
 
@@ -73,6 +75,8 @@ export interface PackChoice {
   name: string
   pictures: number
   clips: number
+  /** Recordings of her voice: her sounds and catch phrases. */
+  sounds: number
 }
 
 /** All that can be packed of one character. */
@@ -87,15 +91,21 @@ export interface PackChoices {
 }
 
 /** How much of what the game has is the player's to pass on. */
-type Ownership = Pick<EditorInfo, 'base' | 'loveInterests' | 'majors'>
+type Ownership = Pick<EditorInfo, 'base' | 'loveInterests' | 'majors'> & Partial<Pick<EditorInfo, 'groups'>>
 
 /** Which files count: as a player has the game, those of their own and not the game's, which everyone has already. */
 const packableFile = (info: Ownership) => (path: string): boolean => info.base || path.startsWith(ADDON_PREFIX)
 
 const isClip = (path: string): boolean => /\.(mp4|webm)$/i.test(path)
+const isSound = (path: string): boolean => /\.(ogg|mp3|wav)$/i.test(path)
+
+/** How many of some files are pictures, clips and recordings of her voice. */
+function sizeOf(files: string[]): { pictures: number; clips: number; sounds: number } {
+  return { clips: files.filter(isClip).length, sounds: files.filter(isSound).length, pictures: files.filter((file) => !isClip(file) && !isSound(file)).length }
+}
 
 function choice(id: string, name: string, files: string[]): PackChoice {
-  return { id, name, clips: files.filter(isClip).length, pictures: files.filter((file) => !isClip(file)).length }
+  return { id, name, ...sizeOf(files) }
 }
 
 const everyone = (content: ContentPack): LoveInterest[] => [...content.loveInterests, ...content.npcs]
@@ -157,7 +167,13 @@ function packedOutfits(who: LoveInterest, picks: PackPicks, counts: (path: strin
  */
 export function packManifest(content: ContentPack, selection: PackSelection, info: Ownership): PackManifest {
   const counts = packableFile(info)
-  const people = everyone(content).filter((who) => selection.people.includes(who.id))
+  // Whom every game has: the game's own characters. Another of the player's own is not in the game a pack goes to
+  // unless she is in the pack too, so a tie to her is left out rather than pointing at nobody.
+  const going = new Set(selection.people)
+  const anywhere = (id: string) => going.has(id) || (info.loveInterests[id] !== undefined && info.loveInterests[id] !== 'addon')
+  const people = everyone(content)
+    .filter((who) => going.has(who.id))
+    .map((who) => ({ ...who, friends: who.friends.filter(anywhere), enemies: who.enemies.filter(anywhere) }))
   const characters = Object.entries(selection.characters).flatMap(([id, picks]): PackedCharacter[] => {
     const who = everyone(content).find((one) => one.id === id)
     // One going whole has it all already.
@@ -182,8 +198,37 @@ export function packManifest(content: ContentPack, selection: PackSelection, inf
       return college ? [{ major, college }] : []
     }),
     characters,
-    people
+    people,
+    groups: packedGroups(content, info, going, anywhere)
   }
+}
+
+/**
+ * The group scenes that go with whole characters: those one of them is in, that are the player's own to give, and
+ * whose other members every game has. One that needs another of the player's own characters stays behind, with its
+ * pictures. Only the files that count come along.
+ */
+function packedGroups(content: ContentPack, info: Ownership, going: Set<string>, anywhere: (id: string) => boolean): Group[] {
+  const counts = packableFile(info)
+  const mine = (group: Group) => info.base || info.groups?.[group.id] === 'addon'
+  return content.groups
+    .filter((group) => group.memberIds.some((id) => going.has(id)) && group.memberIds.every(anywhere) && mine(group))
+    .map((group) => ({
+      ...group,
+      animations: group.animations.map((pose) => packedPose(pose, counts)).filter((pose) => poseMedia(pose).length > 0),
+      tonedAnimations: Object.fromEntries(Object.entries(group.tonedAnimations).map(([tone, poses]) => [tone, (poses ?? []).map((pose) => packedPose(pose, counts)).filter((pose) => poseMedia(pose).length > 0)]))
+    }))
+}
+
+/** Every file a group scene names. */
+export function groupMedia(group: Pick<Group, 'animations' | 'tonedAnimations'>): string[] {
+  return [...new Set([...group.animations.flatMap(poseMedia), ...Object.values(group.tonedAnimations).flatMap((poses) => (poses ?? []).flatMap(poseMedia))])]
+}
+
+/** A group scene with every file's path changed by `to`. A file it has no answer for is left out. */
+export function withGroupPaths(group: Group, to: (path: string) => string | undefined): Group {
+  const moved = (poses: Animation[]) => withPackPaths({ id: group.id, name: group.name, outfits: [], animations: poses }, to).animations
+  return { ...group, animations: moved(group.animations), tonedAnimations: Object.fromEntries(Object.entries(group.tonedAnimations).map(([tone, poses]) => [tone, moved(poses ?? [])])) }
 }
 
 /** One character of a pack with every file's path changed by `to`. A file it has no answer for is left out. */
@@ -209,16 +254,20 @@ export function withPackPaths(who: PackedCharacter, to: (path: string) => string
 /** A whole character with every file's path changed by `to`. A file it has no answer for is left out. */
 export function withPersonPaths(who: LoveInterest, to: (path: string) => string | undefined): LoveInterest {
   const { outfits, animations } = withPackPaths({ ...who, outfits: who.outfits.map((outfit) => ({ ...outfit, whole: true })) }, to)
-  const { birthPictures, walkSprite, room, tonedAnimations, ...rest } = who
+  const { birthPictures, walkSprite, room, tonedAnimations, reactions, catchphrases, ...rest } = who
   const moved = (path: string | undefined) => (path ? to(path) : undefined)
   const walk = moved(walkSprite)
   const births = Object.fromEntries(Object.entries(birthPictures).flatMap(([tone, image]) => (moved(image) ? [[tone, moved(image)]] : [])))
+  // Her voice, by what it is: a sound or a phrase with no recording to go with it is not hers to keep.
+  const voice = (files: Record<string, string>) => Object.fromEntries(Object.entries(files).flatMap(([name, file]) => (moved(file) ? [[name, moved(file)!]] : [])))
   const images = room?.images && Object.fromEntries(Object.entries(room.images).flatMap(([when, image]) => (moved(image) ? [[when, moved(image)]] : [])))
   return {
     ...rest,
     outfits: outfits.map(({ whole: _whole, ...outfit }) => outfit),
     animations,
     birthPictures: births,
+    reactions: voice(reactions),
+    catchphrases: voice(catchphrases),
     // Each tone's sex-acts moved as the light ones are.
     tonedAnimations: Object.fromEntries(Object.entries(tonedAnimations).map(([tone, poses]) => [tone, withPackPaths({ id: who.id, name: who.name, outfits: [], animations: poses ?? [] }, to).animations])),
     ...(walk && { walkSprite: walk }),
@@ -233,13 +282,20 @@ export function packedFiles(who: PackedCharacter): string[] {
 
 /** Every file a whole character names. */
 export function personFiles(who: LoveInterest): string[] {
-  const own = [...Object.values(who.room?.images ?? {}), ...Object.values(who.birthPictures), ...Object.values(who.tonedAnimations).flatMap((poses) => (poses ?? []).flatMap(poseMedia)), who.walkSprite].filter((path): path is string => typeof path === 'string')
+  const own = [
+    ...Object.values(who.room?.images ?? {}),
+    ...Object.values(who.birthPictures),
+    ...Object.values(who.tonedAnimations).flatMap((poses) => (poses ?? []).flatMap(poseMedia)),
+    who.walkSprite,
+    ...Object.values(who.reactions),
+    ...Object.values(who.catchphrases)
+  ].filter((path): path is string => typeof path === 'string' && path !== '')
   return [...new Set([...packedFiles({ ...who, outfits: who.outfits.map((outfit) => ({ ...outfit, whole: true })) }), ...own])]
 }
 
 /** Every file a pack names. */
 export function allPackFiles(manifest: PackManifest): string[] {
-  return [...new Set([...manifest.characters.flatMap(packedFiles), ...manifest.people.flatMap(personFiles)])]
+  return [...new Set([...manifest.characters.flatMap(packedFiles), ...manifest.people.flatMap(personFiles), ...manifest.groups.flatMap(groupMedia)])]
 }
 
 /** A character with a pack's things laid over hers: what she has that it does not name stays. Paths are to have been made hers first. */
@@ -265,7 +321,9 @@ export interface PackPreview {
   /** Subjects by name, and whether this game has that code already: it then keeps its own. */
   majors: { name: string; present: boolean }[]
   /** Whole characters: `replaces` when this game has someone of that id, who is taken away. */
-  people: { id: string; name: string; replaces: boolean; pictures: number; clips: number }[]
+  people: { id: string; name: string; replaces: boolean; pictures: number; clips: number; sounds: number }[]
+  /** Group scenes, by name, and whether this game has one of that id already, which it takes the place of. */
+  groups: { name: string; replaces: boolean }[]
   characters: {
     id: string
     name: string
@@ -283,12 +341,12 @@ export interface PackPreview {
 
 export function packPreview(content: ContentPack, manifest: PackManifest): PackPreview {
   const known = (id: string) => content.looks.expressions.some((face) => face.id === id) || content.looks.acts.some((act) => act.id === id) || content.traits.some((trait) => trait.id === id)
-  const sizeOf = (files: string[]) => ({ clips: files.filter(isClip).length, pictures: files.filter((file) => !isClip(file)).length })
   return {
     name: manifest.name,
     looks: [...manifest.looks.expressions, ...manifest.looks.acts, ...manifest.traits].filter((look) => !known(look.id)).map((look) => look.name),
     majors: manifest.majors.map(({ major }) => ({ name: major.subject, present: (content.curriculum?.majors ?? []).some((one) => one.code === major.code) })),
     people: manifest.people.map((who) => ({ id: who.id, name: who.name, replaces: everyone(content).some((one) => one.id === who.id), ...sizeOf(personFiles(who)) })),
+    groups: manifest.groups.map((group) => ({ name: group.name, replaces: content.groups.some((one) => one.id === group.id) })),
     characters: manifest.characters.map((packed) => {
       const who = everyone(content).find((one) => one.id === packed.id)
       const files = packedFiles(packed)

@@ -10,7 +10,7 @@ Conventions that hold throughout:
 - Character names stay in English in running text (the interface shows them in English, and the game reads speaker
   tags such as `Tamsin: ` at the start of a line). Place, society and event names are translated.
 - A Latin name runs straight into the Chinese with no space ("Edda Lorne教授").
-- Lines recorded in English play silent once translated; catch phrases do not play outside English.
+- Lines recorded in English play silent once translated; a catch phrase plays only where its own words are in the line, so Baixue's 帅哥 plays and English ones stay silent.
 
 ## Places, societies, events, items, the Undercroft and the house
 
@@ -114,6 +114,15 @@ Line numbers count from 1 within that scene's `lines`.
 
 
 Line numbers are 1-based indexes into the scene's `lines` list.
+
+## Canon events (`canon.json`)
+
+Only what the player sees is translated: event names and the memories. The news briefs and Seraphine's added backstory and instructions go to the LLM and stay English, as in the character files.
+
+- **Coined here**: Regency Council = 摄政议会 (from `story.json`); assay = 生育力检测 (from the codex); the Ward Authority = 结界管理局; the unaugmented division = 无增幅组; the Foundry's fair = 铸坊展评会; ward-chime damper = 防护结界鸣响阻尼器; hex-nail = 咒钉. Council of Hearths was not needed.
+- **Seraphine, the brokered seeding.** "trading your womb to Joven Stormbreaker for the Starkelands' goodwill" = 为了换取斯塔克兰的好感，把自己的子宫交给了约文·破风者. Check that the bluntness reads as hers and not clinical.
+- **Ottilie, the leak.** "a studbook for politicians to leak" = 供政客泄密的配种簿. The livestock word is kept on purpose: it is her insult for the Registry, not a description of people.
+- **Tink, the fair.** "your scholarship is off probation" = 你的奖学金也不再是试用期了. Check against how her probationary scholarship is called elsewhere.
 
 ## Terms coined for this batch (not in the glossary)
 

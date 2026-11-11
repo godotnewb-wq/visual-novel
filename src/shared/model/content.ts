@@ -1,3 +1,4 @@
+import { CanonSchema } from './canon'
 import { z } from 'zod'
 import { t } from '../i18n'
 import { DramaConfigSchema } from './drama'
@@ -85,6 +86,8 @@ export const ContentPackSchema = z.object({
   story: StorySchema.default({}),
   /** Weekends away he books himself, from his phone. */
   getaways: GetawaysSchema.prefault({}),
+  /** The world's own story on its own days, going the way his game has gone. Without it, nothing happens of itself. */
+  canon: CanonSchema.prefault({}),
   /** What the game sounds like: the files played for its cues, and the loops behind each place. */
   sounds: SoundsSchema.prefault({}),
   /** Without a map the player can't travel, so every activity must be at the starting location. */
@@ -121,7 +124,7 @@ export function validateContentPack(raw: unknown): ContentPack {
 }
 
 // What a reference that leads nowhere was meant to be, as its message names it.
-type Thing = 'ambience' | 'booth' | 'calendarEvent' | 'character' | 'codexEntry' | 'enemy' | 'item' | 'location' | 'loveInterest' | 'month' | 'outfit' | 'period' | 'relationshipStage' | 'society' | 'pregnancyStage' | 'trait' | 'weekday' | 'weather' | 'course' | 'college'
+type Thing = 'ambience' | 'booth' | 'calendarEvent' | 'canonStep' | 'canonCase' | 'character' | 'codexEntry' | 'enemy' | 'item' | 'location' | 'loveInterest' | 'month' | 'outfit' | 'period' | 'relationshipStage' | 'society' | 'pregnancyStage' | 'trait' | 'weekday' | 'weather' | 'course' | 'college'
 
 function checkReferences(pack: ContentPack): string[] {
   const issues: string[] = []
@@ -615,6 +618,37 @@ function checkReferences(pack: ContentPack): string[] {
     }
     const stages = new Set((pack.pregnancy?.stages ?? []).map((stage) => stage.id))
     Object.keys(below.pregnancyPower).forEach((id) => need(stages, id, 'expedition.pregnancyPower', 'pregnancyStage'))
+  }
+
+  // Canon steps are known by id across events, and one follows another of its own event.
+  idSet(pack.canon.events, 'canon.events')
+  idSet(pack.canon.events.flatMap((event) => event.steps), 'canon steps')
+  for (const event of pack.canon.events) {
+    for (const step of event.steps) {
+      const where = `canon.${event.id}.${step.id}`
+      if ((step.day === undefined) === (step.after === undefined)) issues.push(t('game.content.canonWhen', { where }))
+      if (step.after) {
+        const before = event.steps.find((one) => one.id === step.after!.step)
+        if (!before) unknown(`${where}.after`, 'canonStep', step.after.step)
+        else if (step.after.case !== undefined && !before.cases.some((one) => one.id === step.after!.case)) unknown(`${where}.after`, 'canonCase', step.after.case)
+      }
+      idSet(step.cases, where)
+      for (const taken of step.cases) {
+        const at = `${where}.${taken.id}`
+        taken.when.forEach((rule) => checkRule(rule, at))
+        taken.effects.forEach((rule) => checkRule(rule, at))
+        if (taken.news?.featuring) need(loveInterests, taken.news.featuring, `${at}.news`, 'loveInterest')
+        for (const memory of taken.memories) need(loveInterests, memory.loveInterestId, `${at}.memories`, 'loveInterest')
+        for (const change of taken.changes) {
+          need(loveInterests, change.loveInterestId, `${at}.changes`, 'loveInterest')
+          if (change.room) need(locations, change.room.locationId, `${at}.changes.room`, 'location')
+          for (const s of change.schedule ?? []) {
+            need(locations, s.locationId, `${at}.changes.schedule`, 'location')
+            checkWhen(s, `${at}.changes.schedule`)
+          }
+        }
+      }
+    }
   }
 
   need(locations, pack.newGame.locationId, 'newGame', 'location')

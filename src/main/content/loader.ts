@@ -34,6 +34,8 @@ const OPTIONAL_FILES = {
   story: 'story.json',
   // Weekends away he books from his phone.
   getaways: 'getaways.json',
+  // The world's own story on its own days.
+  canon: 'canon.json',
   jobs: 'jobs.json',
   societies: 'societies.json',
   housing: 'housing.json',

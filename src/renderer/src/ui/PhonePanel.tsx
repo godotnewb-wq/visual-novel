@@ -74,6 +74,8 @@ import {
   unreadNotes,
   unreadPosts,
   markFeedSeen,
+  unreadNews,
+  markNewsSeen,
   viewImage,
   weatherOn,
   canJoinSociety,
@@ -107,6 +109,7 @@ import societiesArt from '../../../assets/phone/apps/societies.webp'
 import shopArt from '../../../assets/phone/apps/shop.webp'
 import profileArt from '../../../assets/phone/apps/profile.webp'
 import tripsArt from '../../../assets/phone/apps/trips.webp'
+import newsArt from '../../../assets/phone/apps/news.webp'
 import { TripsApp } from './TripsApp'
 import { Stalls } from './MarketView'
 import { BackButton } from './BackButton'
@@ -149,7 +152,8 @@ const APPS = [
   { id: 'societies', page: 0, label: 'panels.phone.app.societies', title: 'panels.phone.app.societiesTitle', art: societiesArt },
   { id: 'shop', page: 0, label: 'panels.phone.app.shop', title: 'panels.phone.app.shopTitle', art: shopArt },
   { id: 'profile', page: 1, label: 'panels.phone.profile', title: 'panels.phone.profile', art: profileArt },
-  { id: 'trips', page: 1, label: 'panels.phone.app.trips', title: 'panels.phone.app.tripsTitle', art: tripsArt }
+  { id: 'trips', page: 1, label: 'panels.phone.app.trips', title: 'panels.phone.app.tripsTitle', art: tripsArt },
+  { id: 'news', page: 1, label: 'panels.phone.app.news', title: 'panels.phone.app.newsTitle', art: newsArt }
 ] as const satisfies readonly { id: string; page: number; label: MessageKey; title: MessageKey; art: string }[]
 type App = (typeof APPS)[number]['id']
 const PAGES = Math.max(...APPS.map((one) => one.page)) + 1
@@ -203,6 +207,11 @@ export function PhonePanel({ content, state, onChange, onClose, initialId, initi
   useEffect(() => {
     if (app === 'updates' && newPosts > 0) onChange(markFeedSeen)
   }, [app, newPosts, onChange])
+  // And reading the news is the same: what ran while it is open is read with it.
+  const newStories = unreadNews(state)
+  useEffect(() => {
+    if (app === 'news' && newStories > 0) onChange(markNewsSeen)
+  }, [app, newStories, onChange])
   // Who the open chat is with, and whose page is open in Friends.
   const [chatId, setChatId] = useState<string | undefined>(() => initialChat ?? people.find((li) => unreadNotes(state, li.id) > 0)?.id)
   // Only someone who has given him her Bloomr can be messaged.
@@ -246,6 +255,7 @@ export function PhonePanel({ content, state, onChange, onClose, initialId, initi
               {t(label)}
               {id === 'chats' && unreadNotes(state) > 0 && <span className="badge">{unreadNotes(state)}</span>}
               {id === 'updates' && unreadPosts(state) > 0 && <span className="badge">{unreadPosts(state)}</span>}
+              {id === 'news' && unreadNews(state) > 0 && <span className="badge">{unreadNews(state)}</span>}
             </button>
           ))}
           {/* One dot for each page of apps, the one shown lit: a click anywhere on them turns to the next. */}
@@ -287,6 +297,7 @@ export function PhonePanel({ content, state, onChange, onClose, initialId, initi
           {app === 'shop' && <Market content={content} state={state} onChange={onChange} />}
           {app === 'trips' && <TripsApp content={content} state={state} onChange={onChange} canAct={canAct} onOpenChat={message} />}
           {app === 'profile' && <Profile content={content} state={state} onChange={onChange} />}
+          {app === 'news' && <News content={content} state={state} />}
         </div>
         </div>
         </div>
@@ -933,6 +944,28 @@ interface UpdatesProps {
 }
 
 /** The feed: Bloomr, the selfies everyone has been posting, newest first, a few at a time. */
+/** The day's news, newest first: each story's picture where it has one, its headline, the day it ran, and what it says. */
+function News({ content, state }: { content: ContentPack; state: GameState }) {
+  const stories = state.news.filter((one) => one.time <= state.time).reverse()
+  if (stories.length === 0) return <p className="hint phone-empty">{t('panels.phone.news.none')}</p>
+  return (
+    <div className="news-list">
+      {stories.map((story) => {
+        const date = toDate(content.calendar, story.time)
+        return (
+          <article key={story.id} className="news-story">
+            {story.image && <img src={`content://pack/${story.image}`} alt="" loading="lazy" />}
+            <span className="news-paper">{t('game.news.paper', { paper: story.paper })}</span>
+            <h2>{story.headline}</h2>
+            <span className="hint">{t('panels.phone.date', { weekday: date.weekday, day: date.day, month: date.month.name })}</span>
+            <p>{story.summary}</p>
+          </article>
+        )
+      })}
+    </div>
+  )
+}
+
 function Updates({ content, state, onChange, onMessage, canMessage, error, onRetry }: UpdatesProps) {
   const posts = feedOf(state)
   // Only a page of posts is drawn; reaching the bottom brings in the next.

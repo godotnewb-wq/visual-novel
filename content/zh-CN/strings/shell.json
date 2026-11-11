@@ -96,6 +96,8 @@
   "settings.noLimit": "不限",
   "settings.memoryRecall": "场景中回忆的记忆数",
   "settings.memoryRecallTitle": "向她提供多少条关于你的记忆，优先提供重要记忆。越多越能贴合过往，但提示词也越长。",
+  "settings.newsWebSearch": "从网络搜索新闻",
+  "settings.newsWebSearchTitle": "每日新闻改写网上的一则真实新闻，使用主 LLM 的模型并加上“:online”（nano-gpt 与 OpenRouter 支持）。关闭时，或模型不支持时，新闻由模型自行编写。",
   "settings.reasoning": "思考",
   "settings.reasoningDefault": "模型默认",
   "settings.reasoningOff": "关闭",
@@ -552,5 +554,7 @@
   "app.quit": "退出到桌面",
   "app.log": "日志",
   "app.nothingSaid": "尚无对话。",
-  "app.lastPrompt": "上一条消息发送的系统提示词"
+  "app.lastPrompt": "上一条消息发送的系统提示词",
+  "app.newsToast": "新闻：{headline}",
+  "app.newsFailed": "今日新闻未能写成：{message}"
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { GameState } from '../model'
+import { outfitUse, type GameState } from '../model'
 import { buildCharacterPrompt, lessonCue, openingCue, sceneTurns } from './prompt'
 import { dialogueLines, lookLines } from './scene'
 import { createInitialState } from './state'
@@ -89,6 +89,43 @@ describe('who speaks first', () => {
     // Someone walking in as he speaks goes in front of his line, and stays there in what is sent after.
     const walkedIn = { ...his, cue: 'Bea walks in.' }
     expect(sceneTurns([walkedIn, hers], 'Pat')[0]).toEqual({ role: 'user', content: '[Bea walks in.]\nI did.' })
+  })
+})
+
+describe('the news', () => {
+  it('reaches her as the last few days of it, hers to bring up or not, and is not there when there is none', () => {
+    const state = start()
+    expect(prompt(state)).not.toContain('The news of the last few days')
+    const story = { id: 'news-0', paper: 'national' as const, day: 0, time: state.time, headline: 'Assembly clashes with the Queen', summary: 'A vote went against the Crown.', source: 'invented' as const }
+    const told = prompt({ ...state, news: [story] })
+    expect(told).toContain('The news of the last few days')
+    expect(told).toContain('The Seedblossom Herald: Assembly clashes with the Queen: A vote went against the Crown.')
+    // A story from long ago is not news.
+    expect(prompt({ ...state, time: state.time + 20 * 10, news: [story] })).not.toContain('Assembly clashes')
+  })
+})
+
+describe("an outfit's LLM description", () => {
+  // Ana's lingerie says when she wears it; its pregnant form says nothing of its own, and goes by it.
+  const lingerie = { id: 'lingerie', name: 'Lace', description: 'a black lace bra and panties', sprites: {}, pregnant: false, llmDescription: 'once her outer clothes are off, before she is nude' }
+  const dressed = {
+    ...content,
+    loveInterests: content.loveInterests.map((li) => (li.id === 'ana' ? { ...li, outfits: [...li.outfits, lingerie, { ...lingerie, id: 'lingerie-pregnant', name: 'Lace, pregnant', description: 'She is pregnant.', inherits: 'lingerie', pregnant: true, llmDescription: undefined }] } : li))
+  }
+
+  it('is its own, or the one it builds on', () => {
+    const ana = dressed.loveInterests.find((li) => li.id === 'ana')!
+    expect(outfitUse(ana.outfits, ana.outfits.find((o) => o.id === 'lingerie-pregnant'))).toBe('once her outer clothes are off, before she is nude')
+    expect(outfitUse(ana.outfits, ana.outfits.find((o) => o.id === 'default'))).toBe('')
+  })
+
+  it('is told beside the outfit, alone with him and in a group', () => {
+    const state = start()
+    const alone = buildCharacterPrompt({ content: dressed, state, loveInterestId: 'ana', look: { outfitId: 'default' } })
+    expect(alone).toContain('- lingerie (Lace): a black lace bra and panties When: once her outer clothes are off, before she is nude')
+    const other = { ...content.loveInterests[0], id: 'bea', name: 'Bea' }
+    const group = buildCharacterPrompt({ content: { ...dressed, loveInterests: [...dressed.loveInterests, other] }, state, loveInterestId: 'ana', companionIds: [other.id], look: { outfitId: 'default' } })
+    expect(group).toContain('lingerie (Lace: once her outer clothes are off, before she is nude)')
   })
 })
 

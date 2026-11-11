@@ -123,6 +123,12 @@ import {
   jobOf,
   startShift,
   feedRound,
+  fileNews,
+  newsDue,
+  newsRound,
+  canonDue,
+  canonRound,
+  withCanon,
   dramaDue,
   noteTogether,
   arrivalCue,
@@ -202,7 +208,7 @@ import {
   joinSociety,
   societyPeople
 } from '../../shared/game'
-import { MAX_SCENE_CAST, type Activity, type ContentPack, type EventPart, type ExamKind, type GameState, type Intro, type PostPlan, type Proposal, type Relic, type RelicUse, type Scene, type Travel } from '../../shared/model'
+import { MAX_SCENE_CAST, type Activity, type ContentPack, type EventPart, type ExamKind, type GameState, type Intro, type NewsSource, type PostPlan, type Proposal, type Relic, type RelicUse, type Scene, type Travel } from '../../shared/model'
 import { CHAT_CANCELLED } from '../../shared/ipc'
 import { AUTO_SLOT_ID, type SaveData } from '../../shared/saves'
 import { errorMessage } from './errors'
@@ -357,8 +363,11 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
   const [state, setState] = useState<GameState>(initial.state)
   usePlayerName(state.player.name)
   // The content as this game reads it: the player's name wherever the content wrote the token, and the house he has been let in it or out of it.
-  const content = useMemo(() => withHousing(withSkinTone(personalise(written, state.player.name), state.player.skinTone), state), [written, state.player.name, state.player.skinTone, state.housing])
+  const content = useMemo(() => withHousing(withCanon(withSkinTone(personalise(written, state.player.name), state.player.skinTone), state), state), [written, state.player.name, state.player.skinTone, state.canonChanges, state.housing])
   const [scene, setScene] = useState<Scene | null>(initial.scene)
+  // The catch phrase of the latest reply, waiting for its line to be on screen.
+  const [phrase, setPhrase] = useState<{ file: string; line: string } | undefined>(undefined)
+  const phraseHeard = useCallback(() => setPhrase(undefined), [])
   // The character has closed the scene and the player hasn't moved on yet.
   const [ended, setEnded] = useState(false)
   // A picture he is taking in a scene, being written and drawn.
@@ -401,11 +410,12 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
   }, [scene])
   // What something done alone came to, shown for a few seconds over the day.
   const [toast, setToast] = useState<{ title: string; gains: Growth[] } | null>(null)
+  // Its seconds count from when it can be seen: not while the new day is still coming up.
   useEffect(() => {
-    if (!toast) return
+    if (!toast || dawn) return
     const timer = window.setTimeout(() => setToast(null), TOAST_MS)
     return () => window.clearTimeout(timer)
-  }, [toast])
+  }, [toast, dawn])
   // What the game sounds like as it goes: a cue for what has just happened, the weightiest of them, and then any notice that came with it.
   const heard = useRef(state)
   useEffect(() => {
@@ -413,9 +423,18 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
     heard.current = state
     if (cue) play(cue)
   }, [state])
+  // A notice that comes while the new day is still coming up is heard once it has: the day's news is written as it dawns.
+  const heldNotice = useRef(false)
   useEffect(() => {
-    if (notice || aside || toast) play('notice')
+    if (!notice && !aside && !toast) return
+    if (dawn) heldNotice.current = true
+    else play('notice')
   }, [notice, aside, toast])
+  useEffect(() => {
+    if (dawn || !heldNotice.current) return
+    heldNotice.current = false
+    play('notice')
+  }, [dawn])
   // An achievement is heard as it comes, not as it goes.
   const unlocksHeard = useRef(0)
   useEffect(() => {
@@ -619,6 +638,51 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
         setDrawn((count) => count + 1)
       })
   }, [state.feedPlans, state.weatherSeed, over, drawn])
+  // At the start of each day, what the world's own story has for it happens, and then the day's news is decided: what
+  // that made news, a story of his own, one from the wider world, or none.
+  useEffect(() => {
+    if (!idle || over || (!canonDue(content, state) && !newsDue(content, state))) return
+    setState((current) => {
+      const happened = canonDue(content, current) ? canonRound(content, current) : current
+      return newsDue(content, happened) ? newsRound(content, happened) : happened
+    })
+  }, [idle, over, state, content])
+  // The day's story is written and drawn in the background, once each time the game is run: one that fails waits for
+  // the next run, or gives way to the next day's. It runs with no picture where ComfyUI is not set up.
+  const writingNews = useRef(false)
+  const triedNews = useRef(new Set<string>())
+  // Stories written this run, by plan: one is filed again whenever the game shows its plan without it, since something
+  // else finishing in the background can set the game back to as it was before the story went in.
+  const writtenNews = useRef(new Map<string, { written: { headline: string; summary: string; picture: string }; source: NewsSource; image?: string }>())
+  const [newsWritten, setNewsWritten] = useState(0)
+  useEffect(() => {
+    const plan = state.newsPlan
+    if (!plan || over) return
+    const { weatherSeed } = state
+    const key = `${weatherSeed}:${plan.day}:${plan.trigger ?? ''}`
+    const ready = writtenNews.current.get(key)
+    if (ready) {
+      setState((current) => (current.weatherSeed === weatherSeed ? fileNews(current, plan, ready.written, ready.source, ready.image) : current))
+      return
+    }
+    if (writingNews.current || triedNews.current.has(key)) return
+    triedNews.current.add(key)
+    writingNews.current = true
+    void (async () => {
+      const { written, source, error } = await window.api.news({ state, plan })
+      if (!written || !source) {
+        if (error) console.warn(t('shell.app.newsFailed', { message: error }))
+        return
+      }
+      const drawn = written.picture ? await window.api.newsPicture({ name: `news-day-${plan.day + 1}`, prompt: written.picture }) : { image: null }
+      writtenNews.current.set(key, { written, source, image: drawn.image ?? undefined })
+      setToast({ title: t('shell.app.newsToast', { headline: written.headline }), gains: [] })
+      // Filed by the effect, as the game now stands.
+      setNewsWritten((count) => count + 1)
+    })().finally(() => {
+      writingNews.current = false
+    })
+  }, [state.newsPlan, state.weatherSeed, over, newsWritten])
   // Asked for from the feed: whatever is still planned is tried again now, without waiting for the next run of the game.
   const retryFeed = useCallback(() => {
     triedPlans.current.clear()
@@ -800,12 +864,14 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
     setNotice('')
     setAgreed(arrival?.notice ?? '')
     setRolls([])
+    setPhrase(undefined)
     setLearned([])
     setBusy(true)
     try {
       const response = await window.api.chat({ state: at, scene: asked })
       play('reply')
       playVoices(response.voices)
+      setPhrase(response.phrase)
       // The game, not the LLM, decides whether she conceives.
       // She may have chosen, in this reply, to stop what she takes against it: that counts from this reply on.
       const stopped = response.offControlIds.filter((id) => onBirthControl(content, at, id))
@@ -1731,6 +1797,8 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
             setState(named.state)
             setScene({ ...named.scene, nameSettled: true })
           }}
+          phrase={phrase}
+          onPhraseHeard={phraseHeard}
           turnsKept={turns.length}
           onRedo={redoFrom}
           onContinue={() => void finishScene()}
@@ -1942,7 +2010,7 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
           <span>{aside}</span>
         </div>
       )}
-      {toast && (
+      {toast && !dawn && (
         <div className="toast" role="status" onClick={() => setToast(null)}>
           <strong>{toast.title}</strong>
           {toast.gains.length === 0 && <span>{t('shell.app.nothingCame')}</span>}

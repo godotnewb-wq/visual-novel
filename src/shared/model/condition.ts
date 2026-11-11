@@ -36,7 +36,9 @@ export const ConditionSchema = z.discriminatedUnion('type', [
     /** Day of the game, counting from 1. */
     min: z.number().int().optional(),
     max: z.number().int().optional()
-  })
+  }),
+  /** Passes once he has cleared at least so many depths of the Undercroft. */
+  z.object({ type: z.literal('depth'), min: z.number().int().min(1) })
 ])
 export type Condition = z.infer<typeof ConditionSchema>
 

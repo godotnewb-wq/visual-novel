@@ -71,7 +71,12 @@ export const SettingsSchema = z.object({
    * How many of her memories a character is told in a scene. More keeps her truer to the past and costs a longer prompt.
    * One setting for both LLMs: the prompt is written before it is known which of them will answer.
    */
-  memoryRecall: z.number().int().min(1).default(DEFAULT_MEMORY_RECALL)
+  memoryRecall: z.number().int().min(1).default(DEFAULT_MEMORY_RECALL),
+  /**
+   * The day's news from the wider world is looked up on the web: the Main LLM's model asked in its ":online" form, as
+   * nano-gpt and OpenRouter offer it. Off, or where the model has no such form, the news is the world's own.
+   */
+  newsWebSearch: z.boolean().default(false)
 })
 export type Settings = z.infer<typeof SettingsSchema>
 
@@ -79,7 +84,7 @@ export type Settings = z.infer<typeof SettingsSchema>
 // and sends a key back only when the user types a new one.
 
 export type LlmProfileView = Omit<LlmProfile, 'apiKey'> & { hasApiKey: boolean }
-export type SettingsView = Record<LlmProfileId, LlmProfileView> & Pick<Settings, 'memoryRecall'>
+export type SettingsView = Record<LlmProfileId, LlmProfileView> & Pick<Settings, 'memoryRecall' | 'newsWebSearch'>
 
 export const LlmProfileUpdateSchema = LlmProfileSchema.omit({ apiKey: true }).extend({
   /** Omitted keeps the saved key; an empty string clears it. */
@@ -89,7 +94,9 @@ export const SettingsUpdateSchema = z.object({
   main: LlmProfileUpdateSchema,
   nsfw: LlmProfileUpdateSchema,
   /** Omitted keeps what is saved. */
-  memoryRecall: z.number().int().min(1).optional()
+  memoryRecall: z.number().int().min(1).optional(),
+  /** Omitted keeps what is saved. */
+  newsWebSearch: z.boolean().optional()
 })
 export type SettingsUpdate = z.infer<typeof SettingsUpdateSchema>
 
@@ -113,7 +120,7 @@ export function toView(settings: Settings): SettingsView {
     ...rest,
     hasApiKey: apiKey.length > 0
   })
-  return { main: view(settings.main), nsfw: view(settings.nsfw), memoryRecall: settings.memoryRecall }
+  return { main: view(settings.main), nsfw: view(settings.nsfw), memoryRecall: settings.memoryRecall, newsWebSearch: settings.newsWebSearch }
 }
 
 /** A key is not required: local servers such as LM Studio and Ollama don't use one. */

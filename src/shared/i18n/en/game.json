@@ -539,6 +539,8 @@
   "content.thing.ambience": "ambience",
   "content.thing.booth": "booth",
   "content.thing.calendarEvent": "calendar event",
+  "content.thing.canonStep": "canon step",
+  "content.thing.canonCase": "canon case",
   "content.thing.character": "character",
   "content.thing.codexEntry": "codex entry",
   "content.thing.enemy": "enemy",
@@ -604,9 +606,11 @@
   "content.noLevel": "{where}: there is no level {level}",
   "content.himId": "{where}: no character may have the id \"{id}\"",
   "content.lastGuardian": "{where}: its last stop must be its guardian",
+  "content.canonWhen": "{where}: a step happens on a day, or after another step, and not both",
   "content.phaseOrder": "{where}: each phase must begin lower than the one before it",
   "content.ultimate": "{where}: an ultimate is for a woman with a party role, and its id must be none of her role's",
   "content.emptyFight": "{where}: a fight with nothing to fight",
   "content.unknownRole": "{where}: the role \"{role}\" is not one the expedition has",
-  "skill.oneKind": "A skill is a sight, a passive or an ability: one of them, and only one."
+  "skill.oneKind": "A skill is a sight, a passive or an ability: one of them, and only one.",
+  "news.paper": "{paper, select, student {The Cloister Courier} other {The Seedblossom Herald}}"
 }

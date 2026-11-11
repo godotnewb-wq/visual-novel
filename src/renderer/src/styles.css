@@ -4667,6 +4667,63 @@ button.btn.chat-photo {
   object-fit: cover;
 }
 
+/* The News app: the day's stories, one under another, each like a post with a headline in place of an author. */
+.phone-screen.news > .phone-empty {
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.news-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.news-story {
+  box-sizing: border-box;
+  width: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+  border: 1px solid var(--rule-soft);
+  border-radius: 18px;
+  background: var(--paper);
+}
+
+.news-story > img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 10px;
+  background: var(--rule-soft);
+  object-fit: cover;
+}
+
+/* Which paper ran it, over the headline, as a masthead. */
+.news-story > .news-paper {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft, inherit);
+}
+
+.news-story > h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+
+.news-story > p {
+  margin: 0;
+  font-size: 1.0625rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 /* The end of the posts drawn so far: coming into view brings in the next few. */
 .feed-more {
   flex: none;

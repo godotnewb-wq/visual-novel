@@ -10,7 +10,7 @@ For adults only (18+). It asks once, before anything is shown.
 
 ## What's in it
 
-- **Twenty love interests**, each with her own personality, voice, schedule, wardrobe, story beats and secrets.
+- **Twenty-one love interests**, each with her own personality, voice, schedule, wardrobe, story beats and secrets.
   Scenes with her are written by the LLM from a prompt the game builds, and what she says is checked against the
   game's rules before anything changes.
 - **A year at university**: enroll in courses, sit midterms and finals, take a job, join societies, go to the

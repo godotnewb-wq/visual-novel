@@ -8,7 +8,7 @@ import { Portrait } from './Portrait'
 import { PlanCompare } from './PlanCompare'
 import { RetryNotice } from './RetryNotice'
 import { basePoseId, poseMedia, type ContentPack, type GameState, type LoveInterest, type Scene } from '../../../shared/model'
-import { playSong, setPoseLoop, stopSong, useVolumes } from '../sound'
+import { playSong, playVoices, setPoseLoop, stopSong, useVolumes } from '../sound'
 import { LoadingScreen } from './LoadingScreen'
 import { SmartInput } from './SmartInput'
 import { Backdrop } from './Backdrop'
@@ -47,6 +47,10 @@ interface Props {
   onSkip: () => void
   /** Settles the name of the child just born: another than the one its mother thought of, or with nothing given, hers. */
   onNameChild: (name: string) => void
+  /** A catch phrase in the latest reply, and the line it is said in: played when that line is first on screen. */
+  phrase?: { file: string; line: string }
+  /** Called as the catch phrase is heard, so that it is never heard again. */
+  onPhraseHeard: () => void
   /** How many of his turns in this scene can be redone, counting back from the last. */
   turnsKept: number
   /** Says something else in place of what he said that many turns back: everything from that turn on is undone, and the scene goes on from the new line. */
@@ -280,6 +284,19 @@ export function SceneView(props: Props) {
   const saidAfter = (turnsBack: number): string => (turnsBack > 0 ? (scene.messages[lastIndex - 2 * turnsBack + 1]?.content ?? '') : '')
   const line = lines[shown]
   const more = shown < lines.length - 1
+  // Her catch phrase is heard with the line she says it in, the first time that line of the latest reply is on screen,
+  // and never again: once heard it is handed back and gone, so going back over the lines, or this view being drawn
+  // anew, is quiet. The line is matched by its words, since a solo scene shows a speaker's name on it that the reply's
+  // reading took off.
+  const { phrase, onPhraseHeard } = props
+  useEffect(() => {
+    if (!phrase || back !== 0 || !current || !line) return
+    const wanted = phrase.line.trim()
+    const showing = line.text.trim()
+    if (wanted === '' || !(showing === wanted || showing.endsWith(wanted))) return
+    onPhraseHeard()
+    playVoices([phrase.file])
+  }, [phrase, onPhraseHeard, back, current, line])
   /**
    * A beat back. Back past the first beat of a reply is the end of the reply before it,
    * where his turn was: his line is in the box again, to say differently. Nothing is

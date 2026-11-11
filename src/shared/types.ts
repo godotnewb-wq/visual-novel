@@ -2,7 +2,7 @@ import { BANTER_MOMENTS, type BanterLine } from './game/banter'
 import { MOMENTS } from './game/momentLines'
 import type { CoursePick } from './game/coursePick'
 import { z } from 'zod'
-import type { LoveInterest, Major } from './model'
+import { NewsPlanSchema, type LoveInterest, type Major, type NewsSource } from './model'
 import type { MajorIdea } from './game/draftMajor'
 import type { Card } from './game/sillyCard'
 import type { PackPreview, PackSelection } from './packs'
@@ -81,8 +81,10 @@ export interface ChatResponse {
   offControlIds: string[]
   /** A change to the relationship the character has just asked for, for the player to accept or decline. */
   bondProposal?: BondProposal
-  /** Her voice in the reply, files in the pack to play one after another: a sound she makes, then a catch phrase she says. */
+  /** Her voice in the reply, files in the pack to play as it arrives: a sound she makes. */
   voices: string[]
+  /** A catch phrase she says in it, and the line she says it in: heard when that line is on screen. */
+  phrase?: { file: string; line: string }
 }
 
 export interface SummarizeResponse {
@@ -211,6 +213,20 @@ export interface SelfieResponse {
   error?: string
 }
 
+// The day's news story to write: the game, and the plan made for the day.
+export const NewsRequestSchema = z.object({ state: GameStateSchema, plan: NewsPlanSchema })
+export type NewsRequest = z.input<typeof NewsRequestSchema>
+
+/** The day's story as written, where it came from, and what to draw with it; or why there is none. */
+export interface NewsResponse {
+  written?: { headline: string; summary: string; picture: string }
+  source?: NewsSource
+  error?: string
+}
+
+export const NewsPictureRequestSchema = z.object({ name: z.string().max(64), prompt: z.string().max(4000) })
+export type NewsPictureRequest = z.input<typeof NewsPictureRequestSchema>
+
 export interface FeedPictureResponse {
   /** The selfie's path in the content, or null when it could not be drawn. */
   image: string | null
@@ -265,6 +281,10 @@ export interface RendererApi {
   feed(request: FeedRequest): Promise<FeedResponse>
   /** Draws the selfie for one Bloomr post on ComfyUI. Never rejects. */
   feedPicture(request: FeedPictureRequest): Promise<FeedPictureResponse>
+  /** Writes the day's news story. Never rejects. */
+  news(request: NewsRequest): Promise<NewsResponse>
+  /** Draws the day's news picture on ComfyUI, where it is set up. Never rejects: no picture is null. */
+  newsPicture(request: NewsPictureRequest): Promise<FeedPictureResponse>
   scenePhoto(request: SceneRequest): Promise<ScenePhotoResponse>
   /** Writes and draws the selfie he asked a love interest for. Never rejects. */
   selfie(request: SelfieRequest): Promise<SelfieResponse>

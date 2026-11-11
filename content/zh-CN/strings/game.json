@@ -539,6 +539,8 @@
   "content.thing.ambience": "环境音",
   "content.thing.booth": "展台",
   "content.thing.calendarEvent": "日历活动",
+  "content.thing.canonStep": "正典步骤",
+  "content.thing.canonCase": "正典分支",
   "content.thing.character": "角色",
   "content.thing.codexEntry": "图鉴条目",
   "content.thing.enemy": "敌人",
@@ -604,9 +606,11 @@
   "content.noLevel": "{where}：没有等级 {level}",
   "content.himId": "{where}：角色不能使用 ID“{id}”",
   "content.lastGuardian": "{where}：最后一站必须是守卫",
+  "content.canonWhen": "{where}：一个步骤要么在某天发生，要么在另一步骤之后发生，二者只能取其一",
   "content.phaseOrder": "{where}：各阶段的触发值必须逐次降低",
   "content.ultimate": "{where}：终极技能仅供有战斗定位的女性使用，ID 不得与该定位的技能重复",
   "content.emptyFight": "{where}：战斗中没有敌人",
   "content.unknownRole": "{where}：探险系统没有“{role}”定位",
-  "skill.oneKind": "技能必须且只能属于洞察、被动或能力中的一种。"
+  "skill.oneKind": "技能必须且只能属于洞察、被动或能力中的一种。",
+  "news.paper": "{paper, select, student {回廊信使报} other {籽花城先驱报}}"
 }

@@ -53,6 +53,8 @@ export function evaluateCondition(c: Condition, ctx: RuleContext): boolean {
       return eventsOn(content, state).some((e) => e.id === c.eventId)
     case 'day':
       return inRange(toDate(content.calendar, state.time).dayIndex + 1, c.min, c.max)
+    case 'depth':
+      return state.expedition.cleared >= c.min
   }
 }
 
@@ -86,6 +88,8 @@ export function describeCondition(c: Condition, content: ContentPack): string {
       return t('scene.conditions.event', { event: content.calendar.events.find((e) => e.id === c.eventId)?.name ?? c.eventId })
     case 'day':
       return c.min !== undefined ? t('scene.conditions.dayMin', { min: c.min }) : t('scene.conditions.dayMax', { max: c.max })
+    case 'depth':
+      return t('scene.conditions.depth', { min: c.min })
   }
 }
 

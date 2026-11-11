@@ -15,6 +15,7 @@ import {
   meet,
   sceneCast,
   catchphraseIn,
+  catchphraseAt,
   parseDirectives,
   sexWrittenOf,
   lookLines,
@@ -123,6 +124,17 @@ describe('look directives', () => {
     const lola = { id: 'lola', name: 'Lola Hopworth', catchphrases: { 'my dear': 'm.ogg', chéri: 'c.ogg' } }
     expect(catchphraseIn('Sit down, darling. You look tired.', [mor], 'mor')).toBe('d.ogg')
     expect(catchphraseIn('Lola: Oh, my dear, look at you.\nMorwenna: Darling!', [mor, lola], 'mor')).toBe('m.ogg')
+    // A phrase in Chinese, which sets no spaces between words, is heard set off by its punctuation or the line's ends;
+    // inside a run of other words it is not.
+    const bai = { id: 'bai', name: 'Baixue Fang', catchphrases: { 帅哥: 's.ogg' } }
+    expect(catchphraseIn('帅哥，你来了。', [bai], 'bai')).toBe('s.ogg')
+    expect(catchphraseIn('你终于来了，帅哥！', [bai], 'bai')).toBe('s.ogg')
+    expect(catchphraseIn('Hello again, 帅哥.', [bai], 'bai')).toBe('s.ogg')
+    expect(catchphraseIn('她说那个帅哥很高。', [bai], 'bai')).toBeUndefined()
+    // An English phrase in a Chinese reply is not written, so not heard.
+    expect(catchphraseIn('坐吧，亲爱的。', [mor], 'mor')).toBeUndefined()
+    // With the line it is said in, to be heard when that line is on screen and not before.
+    expect(catchphraseAt('*She looks up.*\nI was waiting.\nMorwenna: There you are, darling.', [mor, lola], 'mor')).toEqual({ file: 'd.ogg', line: 'There you are, darling.' })
     // Narrated, or the word inside another, or in a line not hers, it is not heard.
     expect(catchphraseIn('*She calls him darling, softly.*', [mor], 'mor')).toBeUndefined()
     expect(catchphraseIn('Lola: Darling, really.', [mor, lola], 'mor')).toBeUndefined()

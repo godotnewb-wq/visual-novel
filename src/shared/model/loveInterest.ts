@@ -73,6 +73,12 @@ export const OutfitSchema = z.object({
    */
   description: z.string().default(""),
   /**
+   * For the AI alone, and optional: when she wears it, which the picture's description does not say ("worn once her
+   * outer clothes are off and before she is naked"). Told beside the outfit wherever she may change into it. An outfit
+   * that inherits and has none goes by its parent's.
+   */
+  llmDescription: z.string().optional(),
+  /**
    * The id of its parent: another of her outfits, which this one builds on. Its description
    * is then the parent's with its own added to it: `pregnant` is `default` plus "She has a
    * round, pregnant belly." A pregnant outfit is also the pregnant form of its parent: once
@@ -150,6 +156,20 @@ export function outfitParts(
 }
 
 /** An outfit's whole description, with whatever it inherits in front of what it adds. */
+/**
+ * What the AI is told of when an outfit is worn (`llmDescription`): its own, or, for one that builds on another and
+ * says nothing of its own, its parent's. Empty when none of them says.
+ */
+export function outfitUse(outfits: Outfit[], outfit: Outfit | undefined): string {
+  const seen = new Set<string>();
+  for (let at = outfit; at && !seen.has(at.id); at = outfits.find((one) => one.id === at!.inherits)) {
+    seen.add(at.id);
+    const own = at.llmDescription?.trim();
+    if (own) return own;
+  }
+  return "";
+}
+
 export function outfitDescription(
   outfits: Outfit[],
   outfit: Outfit | undefined,

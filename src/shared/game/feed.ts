@@ -195,7 +195,7 @@ export function toggleLike(content: ContentPack, state: GameState, postId: strin
 }
 
 /** A repeatable number in [0, 1) for one draw on one day of one game. */
-function roll(seed: number, dayIndex: number, index: number): number {
+export function roll(seed: number, dayIndex: number, index: number): number {
   let x = (seed ^ Math.imul(dayIndex + 1, 0x51ed270b) ^ Math.imul(index + 1, 0x2545f491)) >>> 0
   x = Math.imul(x ^ (x >>> 15), 0x2c1b3c6d) >>> 0
   x = Math.imul(x ^ (x >>> 12), 0x297a2d39) >>> 0

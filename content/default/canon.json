@@ -1,0 +1,470 @@
+{
+  "events": [
+    {
+      "id": "queens-decree",
+      "name": "The Queen's decree",
+      "steps": [
+        {
+          "id": "queen-decree",
+          "day": 45,
+          "cases": [
+            {
+              "id": "heir",
+              "when": [
+                {
+                  "type": "pregnant",
+                  "loveInterestId": "seraphine",
+                  "value": true
+                }
+              ],
+              "news": {
+                "paper": "national",
+                "brief": "The Regency Council, expected today to decree that Queen Seraphine V secure the succession, announced instead that the eighteen-year-old Queen is already with child. Royal physicians confirmed the father is an assayed True Sire. Dawnbloom House has not yet named him.",
+                "covers": [
+                  "queen-with-child"
+                ]
+              },
+              "effects": [
+                {
+                  "type": "flag",
+                  "flag": "seraphine-heir",
+                  "value": true
+                }
+              ],
+              "memories": [
+                {
+                  "loveInterestId": "seraphine",
+                  "summary": "The Regency Council came to Dawnbloom House to force your hand, and you got to tell them it was already done. You are carrying {player}'s child, and for the first time since your mother died, the Council had nothing to say.",
+                  "level": "core"
+                }
+              ]
+            },
+            {
+              "id": "ultimatum",
+              "news": {
+                "paper": "national",
+                "brief": "The Regency Council has decreed that Queen Seraphine V must conceive an heir by an assayed True Sire within fourteen days. If the royal physicians have not confirmed a pregnancy by the deadline, the succession passes out of her mother's line to a cadet branch."
+              },
+              "effects": [
+                {
+                  "type": "flag",
+                  "flag": "seraphine-decree",
+                  "value": true
+                }
+              ],
+              "memories": [
+                {
+                  "loveInterestId": "seraphine",
+                  "summary": "The Council gave you fourteen days to let a True Sire put an heir in you or lose your mother's crown. Your hands shook while you signed for the decree, and all you could think was that {player} is the only True Sire you know.",
+                  "level": "core"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "queen-named",
+          "after": {
+            "step": "queen-decree",
+            "case": "heir",
+            "days": 1
+          },
+          "cases": [
+            {
+              "id": "named",
+              "news": {
+                "paper": "national",
+                "brief": "Dawnbloom House has named {player}, a first-year student at Breedhaven University and a newly assayed True Sire, as the father of Queen Seraphine V's unborn heir and the Queen's acknowledged lover. He is the first commoner in three generations to father a child in the direct royal line."
+              },
+              "memories": [
+                {
+                  "loveInterestId": "seraphine",
+                  "summary": "Your secretary read {player}'s name to the press this morning, and now the whole kingdom knows who you chose. You were terrified to let them have his name, and proud to hear it said aloud.",
+                  "level": "core"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "queen-deadline",
+          "after": {
+            "step": "queen-decree",
+            "case": "ultimatum",
+            "days": 14
+          },
+          "cases": [
+            {
+              "id": "met",
+              "when": [
+                {
+                  "type": "pregnant",
+                  "loveInterestId": "seraphine",
+                  "value": true
+                }
+              ],
+              "news": {
+                "paper": "national",
+                "brief": "Hours before the Regency Council's fourteen-day deadline, Dawnbloom House announced that Queen Seraphine V is with child. Royal physicians confirmed to the Council that the father is an assayed True Sire, securing the succession in her line. He has not yet been named.",
+                "covers": [
+                  "queen-with-child"
+                ]
+              },
+              "effects": [
+                {
+                  "type": "flag",
+                  "flag": "seraphine-heir",
+                  "value": true
+                }
+              ],
+              "memories": [
+                {
+                  "loveInterestId": "seraphine",
+                  "summary": "The royal physician gave the Council her seal with hours to spare. You kept your mother's crown, and it is {player}'s child you are carrying.",
+                  "level": "core"
+                }
+              ]
+            },
+            {
+              "id": "brokered",
+              "news": {
+                "paper": "national",
+                "brief": "The Regency Council's fourteen-day deadline has passed without the Queen conceiving. The Council has signed a treaty with the Council of Hearths to bring Joven Stormbreaker south from Hearthspire to sire the royal heir after the first semester. Run it under the headline \"Diplomatic seeding for Seraphine V brokered with Joven Stormbreaker of the Starkelands\"."
+              },
+              "effects": [
+                {
+                  "type": "flag",
+                  "flag": "seraphine-brokered",
+                  "value": true
+                }
+              ],
+              "memories": [
+                {
+                  "loveInterestId": "seraphine",
+                  "summary": "You signed the Council's treaty with a steady hand, trading your womb to Joven Stormbreaker for the Starkelands' goodwill. You are bound to a stranger from Hearthspire, and you wish it had been {player}.",
+                  "level": "core"
+                }
+              ],
+              "changes": [
+                {
+                  "loveInterestId": "seraphine",
+                  "backstory": "When the Regency Council's fourteen-day deadline passed without an heir, the Council brokered a treaty with the Council of Hearths in the Starkelands: Joven Stormbreaker of Hearthspire, until this year the highest-assayed Sire alive, will come south to sire the Queen's heir. Seraphine signed it. She is still Queen and still a first-year Government student, waiting for a man she has never met, who is to come after the first semester.",
+                  "extraInstructions": "She hides her dread of the arranged seeding behind stiff royal formality whenever she feels exposed. Her regret over {player} slips through in private."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "queen-named-late",
+          "after": {
+            "step": "queen-deadline",
+            "case": "met",
+            "days": 1
+          },
+          "cases": [
+            {
+              "id": "named",
+              "news": {
+                "paper": "national",
+                "brief": "Dawnbloom House has named {player}, a first-year student at Breedhaven University and a newly assayed True Sire, as the father of Queen Seraphine V's unborn heir and the Queen's acknowledged lover. He is the first commoner in three generations to father a child in the direct royal line."
+              },
+              "memories": [
+                {
+                  "loveInterestId": "seraphine",
+                  "summary": "Dawnbloom House gave {player}'s name to the Herald today. Everyone knows how close the deadline was, and you do not care: it was him you wanted, not any Sire on the Council's list.",
+                  "level": "core"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "treaty-cancelled",
+          "after": {
+            "step": "queen-deadline",
+            "case": "brokered",
+            "days": 1
+          },
+          "cases": [
+            {
+              "id": "cancelled",
+              "when": [
+                {
+                  "type": "pregnant",
+                  "loveInterestId": "seraphine",
+                  "value": true
+                }
+              ],
+              "news": {
+                "paper": "national",
+                "brief": "The treaty between the Regency Council and the Council of Hearths of the Starkelands has been cancelled, and Joven Stormbreaker of Hearthspire will not come south after the semester. Dawnbloom House confirmed this morning that Queen Seraphine V is already with child by a True Sire. It has declined to name the father, leaving the capital to speculate about the mysterious True Sire.",
+                "covers": [
+                  "queen-with-child"
+                ]
+              },
+              "effects": [
+                {
+                  "type": "flag",
+                  "flag": "seraphine-heir",
+                  "value": true
+                },
+                {
+                  "type": "flag",
+                  "flag": "seraphine-treaty-cancelled",
+                  "value": true
+                }
+              ],
+              "memories": [
+                {
+                  "loveInterestId": "seraphine",
+                  "summary": "You let {player} put a child in you before Joven Stormbreaker ever set foot in the south, and the Regency Council had to tear up its treaty. The papers call him a mysterious True Sire, and you keep your hand over your belly and his name to yourself.",
+                  "level": "core"
+                }
+              ],
+              "changes": [
+                {
+                  "loveInterestId": "seraphine",
+                  "backstory": "That is behind her now: before the semester ended she conceived by {player}, and the Regency Council cancelled the treaty with the Starkelands. Joven Stormbreaker will not come south. Dawnbloom House has announced her pregnancy and keeps {player}'s name from the public.",
+                  "extraInstructions": "She is quietly relieved the treaty is gone, though still shy and quick to hide behind royal airs when flustered by her pregnancy or her feelings for {player}. In public she guards that he is the father; alone with him she softens."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "record-assay",
+      "name": "The record assay",
+      "steps": [
+        {
+          "id": "assay-leak",
+          "day": 10,
+          "cases": [
+            {
+              "id": "leak",
+              "news": {
+                "paper": "national",
+                "brief": "Records leaked from the national Sire Registry show that {player}, a first-year student at Breedhaven University, has the highest Sire Assay ever recorded, above the mark Joven Stormbreaker of Hearthspire has held for eleven years. Neither the Registry nor the University's fertility lab has commented."
+              },
+              "memories": [
+                {
+                  "loveInterestId": "ottilie",
+                  "summary": "A Registry clerk sold your lab's numbers to the Herald before the ink was dry. You have said for years that the Registry is a studbook for politicians to leak, and now {player} is the one paying for it.",
+                  "level": "core"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "assay-challenge",
+          "day": 12,
+          "cases": [
+            {
+              "id": "defended",
+              "when": [
+                {
+                  "type": "stage",
+                  "loveInterestId": "ottilie",
+                  "min": "friend"
+                }
+              ],
+              "news": {
+                "paper": "national",
+                "brief": "Joven Stormbreaker of Hearthspire has demanded, through the Council of Hearths, that {player}'s record assay be repeated before independent witnesses. In a letter published today, Dr. Ottilie Marrow, who ran the original assay at Breedhaven University, answered that her figures stand and that a man is not a prize bull to be shown to northern politicians."
+              },
+              "memories": [
+                {
+                  "loveInterestId": "ottilie",
+                  "summary": "Joven Stormbreaker questioned your numbers, so you answered him in print over your full title. You do not let anyone slander your lab's work, and you were not going to let them make {player} a public exhibit.",
+                  "level": "core"
+                }
+              ]
+            },
+            {
+              "id": "challenged",
+              "news": {
+                "paper": "national",
+                "brief": "Joven Stormbreaker of Hearthspire has questioned the leaked assay of Breedhaven University first-year {player}, calling through the Council of Hearths for a public re-assay before northern observers. The University and Dr. Ottilie Marrow's lab declined to comment."
+              },
+              "memories": [
+                {
+                  "loveInterestId": "ottilie",
+                  "summary": "Stormbreaker demanded a public re-assay, and the Dean told you not to reply. Your numbers are exact, whether Hearthspire likes them or not.",
+                  "level": "core"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "campus-year",
+      "name": "The campus year",
+      "steps": [
+        {
+          "id": "tink-fair",
+          "day": 30,
+          "cases": [
+            {
+              "id": "wins",
+              "news": {
+                "paper": "student",
+                "featuring": "tink",
+                "brief": "First-year Magical Engineering student Tink Lightfoot won the Foundry's first-year fair with a palm-sized resonance tuner that finds and silences ward-chimes through three inches of oak. The judges praised its clean rune-work and asked that Lightfoot register all her prototypes with Campus Security."
+              },
+              "memories": [
+                {
+                  "loveInterestId": "tink",
+                  "summary": "You won the Foundry fair with a ward-chime damper you swore up and down was meant for noisy radiators. The dean gave you a blue ribbon and a very long look, and your scholarship is off probation.",
+                  "level": "core"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "morwenna-column",
+          "day": 65,
+          "cases": [
+            {
+              "id": "names-him",
+              "when": [
+                {
+                  "type": "stage",
+                  "loveInterestId": "morwenna",
+                  "min": "lover"
+                }
+              ],
+              "news": {
+                "paper": "student",
+                "featuring": "morwenna",
+                "brief": "In a Courier column, Women's Studies senior Morwenna Thriceborn took apart how campus has behaved since a True Sire enrolled this term, arguing that Freewill talk collapses within twenty feet of him. She ended by naming {player} as her own lover, writing that she prefers to study power from the inside."
+              },
+              "memories": [
+                {
+                  "loveInterestId": "morwenna",
+                  "summary": "You put {player}'s name in the last line of your Courier column and let it run. Half the department won't look you in the eye, and you have never enjoyed a byline more.",
+                  "level": "core"
+                }
+              ]
+            },
+            {
+              "id": "column",
+              "news": {
+                "paper": "student",
+                "featuring": "morwenna",
+                "brief": "Women's Studies senior Morwenna Thriceborn's Courier column charts how the Bloom has changed seating in lectures, hemlines and faculty office hours since a True Sire enrolled this term, and argues that pretending not to feel the pull only makes women clumsier about giving in to it. She did not name him."
+              },
+              "memories": [
+                {
+                  "loveInterestId": "morwenna",
+                  "summary": "Your column on the True Sire ran in the Courier, and you watched three Freewill seniors read it over coffee while craning to see if he was crossing the quad. You never had to print his name.",
+                  "level": "core"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "arena-finals",
+          "day": 95,
+          "cases": [
+            {
+              "id": "for-him",
+              "when": [
+                {
+                  "type": "stage",
+                  "loveInterestId": "daphne",
+                  "min": "lover"
+                }
+              ],
+              "news": {
+                "paper": "student",
+                "featuring": "daphne",
+                "brief": "Volleyball captain Daphne won the unaugmented title at the Arena Finals, putting her opponent down in the third round under chief referee Grushka Tor-Vael. At the bell she went past the press line and straight into the stands to find {player}."
+              },
+              "memories": [
+                {
+                  "loveInterestId": "daphne",
+                  "summary": "You won the unaugmented title in the third round, waited for Coach's call, and went straight into the stands to kiss {player} with the sweat still on you. You won it clean, without a single rune, and he was there to see it.",
+                  "level": "core"
+                },
+                {
+                  "loveInterestId": "grushka",
+                  "summary": "Daphne took the unaugmented title on clean footwork and nothing else. Then she went over the barrier to get to {player}, and you let the ceremony wait.",
+                  "level": "core"
+                }
+              ]
+            },
+            {
+              "id": "wins",
+              "news": {
+                "paper": "student",
+                "featuring": "daphne",
+                "brief": "Volleyball captain Daphne won the unaugmented title at the Arena Finals, stopping her opponent in the third round. Chief referee Grushka Tor-Vael called a clean final with no augmentation fouls."
+              },
+              "memories": [
+                {
+                  "loveInterestId": "daphne",
+                  "summary": "You won the unaugmented title in the third round, and at the medal table Coach Grushka gave you one nod. That nod was worth more than the medal.",
+                  "level": "core"
+                },
+                {
+                  "loveInterestId": "grushka",
+                  "summary": "Daphne won the unaugmented title on clean footwork and pure lungs. You gave her the nod at the medal table; she earned it.",
+                  "level": "core"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "vespera-wards",
+          "day": 105,
+          "cases": [
+            {
+              "id": "held",
+              "when": [
+                {
+                  "type": "depth",
+                  "min": 3
+                }
+              ],
+              "news": {
+                "paper": "student",
+                "featuring": "vespera",
+                "brief": "Witchcraft professor Vespera Midnight has been cited by the Municipal Ward Authority for unlicensed circle-work on the University's seven-hundred-year-old foundation wards. She told the Courier she will not apologize: the Authority ignored the slipping lines for years, and the wards held only because someone with a backbone has been doing the hard part down in the dark."
+              },
+              "memories": [
+                {
+                  "loveInterestId": "vespera",
+                  "summary": "The Ward Authority pinned a citation to your door for patching the old lines without a permit. You told the Courier the wards held because someone was doing the hard part below, and kept {player}'s name out of it.",
+                  "level": "core"
+                }
+              ]
+            },
+            {
+              "id": "cited",
+              "news": {
+                "paper": "student",
+                "featuring": "vespera",
+                "brief": "Witchcraft professor Vespera Midnight has been cited by the Municipal Ward Authority for unlicensed repairs to the University's ancient foundation wards. She told the Courier she means to frame the citation, and invited the Authority's inspectors to hold the chalk themselves next time."
+              },
+              "memories": [
+                {
+                  "loveInterestId": "vespera",
+                  "summary": "The Ward Authority cited you for patching the old lines without waiting six months for a committee's stamp. You pinned the summons to your door with a hex-nail and went back to work.",
+                  "level": "core"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

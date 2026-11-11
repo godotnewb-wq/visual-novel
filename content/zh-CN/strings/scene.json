@@ -53,6 +53,7 @@
   "conditions.event": "正值{event}",
   "conditions.dayMin": "第 {min} 天及以后",
   "conditions.dayMax": "第 {max} 天及以前",
+  "conditions.depth": "已清理地下遗构 {min} 层",
   "conditions.something": "某事",
   "modifiers.training": "{stats}训练",
   "modifiers.desireNeeded": "所需欲望",

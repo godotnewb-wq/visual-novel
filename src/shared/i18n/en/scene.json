@@ -150,6 +150,7 @@
   "prompt.appear.actsGroupRules": "A sex-act is chosen in addition to the faces and outfits, never in their place. When the scene reaches one of these sex-acts, add a line saying whose and which: {tag}. Choose the one of you the moment is most about, and change whose it is as the moment passes from one of you to another; the rest of you stay in view in front of it. Most replies have no {bare} line at all: write one only in a reply whose own lines show that act happening at that moment, and never for talk, kissing or anything afterwards. A sex-act is up for the one reply that asks for it and comes down with the next, so do not carry it on out of habit. {creampie} and {facial} are a single moment and are never shown twice running.",
   "prompt.appear.wearing": "You are wearing \"{outfit}\". When what you are wearing changes in the story, write {tag} on a line after your face:",
   "prompt.appear.option": "- {id} ({name}): {about}",
+  "prompt.appear.outfitOption": "- {id} ({name}): {about}{used, select, true { When: {use}} other {}}",
   "prompt.appear.onNow": "what you have on now, described above",
   "prompt.appear.facesGroup": "- {first} may also have, in place of a face: {faces}",
   "prompt.appear.picture": "  - in place of a face, {tag} shows: {description}",
@@ -358,6 +359,7 @@
   "conditions.event": "it to be {event}",
   "conditions.dayMin": "day {min} or later",
   "conditions.dayMax": "day {max} or earlier",
+  "conditions.depth": "{min, plural, one {# depth} other {# depths}} of the Undercroft cleared",
   "conditions.something": "Something",
   "modifiers.training": "{stats} training",
   "modifiers.desireNeeded": "desire she needs",
@@ -381,5 +383,6 @@
   "viewing.activity": "Being shown {house}",
   "viewing.description": "{officer} has walked you through {house} room by room, keys in hand, and brings you back to the hearth room, where the nanny is waiting to meet you.",
   "viewing.direction": "This is the hour {player} is given {house}. {officer}, the housing officer of the Sire Relations Office, has just shown him round it: which rooms are furnished, which stand bare for him to build, where the wards are, and the terms of the rent. She has introduced you, the nanny who lives in the house, and you have told him how the children are looked after here and what makes a child thrive. You are meeting {player} for the first time, in what is now his home and yours. {officer} is here and speaks for herself, exact and brief, and leaves once his questions are answered. Stay in the house: do not move the scene anywhere.",
-  "detect.sexWritten": ""
+  "detect.sexWritten": "",
+  "prompt.scene.news": "The news of the last few days, which you have heard as everyone has: {stories}. Bring a story up only if it would matter to you, in your own way, or if {player} does. A story about you is one you know is out there."
 }

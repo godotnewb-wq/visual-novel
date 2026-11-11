@@ -1,4 +1,4 @@
-import { MEMORY_LEVEL_LABELS, picturedOutfit, EXPRESSIONS, isPregnantPose, poseDescription, poseMedia, kindOf, classYear, outfitDescription, type ChatMessage, type ContentPack, type LoveInterest, type Memory, type Outfit, type Departure, type GameState, type Lesson, type Npc, type Proposal, type Scene, type SceneBeat, type SceneGift, type ScenePresent, type RelicUse } from '../model'
+import { MEMORY_LEVEL_LABELS, picturedOutfit, EXPRESSIONS, isPregnantPose, poseDescription, poseMedia, kindOf, classYear, outfitDescription, outfitUse, type ChatMessage, type ContentPack, type LoveInterest, type Memory, type Outfit, type Departure, type GameState, type Lesson, type Npc, type Proposal, type Scene, type SceneBeat, type SceneGift, type ScenePresent, type RelicUse } from '../model'
 import { describeGift } from './market'
 import { examNotes } from './exams'
 import { attendees, describeWhen, upcomingAppointments } from './appointments'
@@ -27,6 +27,7 @@ import { AGREED_TAG, firstNames, SCENE_END_TAG, SEEDED_TAG, SLEEP_TAG } from './
 import { describePlayerRoom, playerRoom, describePlace, describeRoom, describeWeather, roomOwner, sceneView } from './sceneMoves'
 import { backgroundFor, isIndoors } from './schedule'
 import { weatherOn } from './weather'
+import { recentNews } from './news'
 import { presentEventNow } from './presents'
 import { describeRelicUses, relicTraitIds } from './relics'
 import { trustOf } from './modifiers'
@@ -447,6 +448,11 @@ export function buildCharacterPrompt(input: PromptInput): string {
       ...upcomingEvents(content, state, UPCOMING_EVENT_DAYS).map(({ event, inDays }) =>
         t('scene.prompt.scene.upcoming', { name: event.name, days: inDays, description: describeEvent(content, event), going: eventGoers(state, event.id).includes(li.id), player: player.name }).trim()
       ),
+      // The news of the last few days, which she has heard as everyone has: hers to bring up only if it matters to her.
+      ...(() => {
+        const heard = recentNews(content, state)
+        return heard.length > 0 ? [t('scene.prompt.scene.news', { stories: heard.map((one) => `${t('game.news.paper', { paper: one.paper })}: ${one.headline}: ${one.summary}`).join(' / '), player: player.name })] : []
+      })(),
       ...examNotes(content, state, li, player.name),
       isBirthday && t('scene.prompt.scene.birthday'),
       byCourier
@@ -567,7 +573,13 @@ export function buildCharacterPrompt(input: PromptInput): string {
               t('scene.prompt.appear.outfitGroup', { tag: '[OUTFIT: Name=id]' }),
               ...voices.map((c) => {
                 const worn = wornOutfit(content, state, c, c.id === li.id ? look.outfitId : input.looks?.[c.id]?.outfitId)
-                const has = wearableOutfits(c, state).map((o) => `${o.id} (${o.name})`).join(', ')
+                // Each by id and name, and when she wears it where her file says (`llmDescription`).
+                const has = wearableOutfits(c, state)
+                  .map((o) => {
+                    const use = outfitUse(c.outfits, o)
+                    return use ? `${o.id} (${o.name}: ${use})` : `${o.id} (${o.name})`
+                  })
+                  .join(', ')
                 const first = c.name.split(' ')[0]
                 const note = pregnantNote(c, first)
                 return t('scene.prompt.appear.wearingGroup', { first, outfit: wearing(c, worn), has, showing: note !== false, note: note || undefined })
@@ -600,10 +612,12 @@ export function buildCharacterPrompt(input: PromptInput): string {
                 // Pictures that are not one of the faces: something particular, to be asked for by name.
                 const others = ownFaces(picturedOutfit(li.outfits, o))
                 return [
-                  t('scene.prompt.appear.option', {
+                  t('scene.prompt.appear.outfitOption', {
                     id: o.id,
                     name: o.name,
-                    about: o.id === wearing(li, outfit) ? t('scene.prompt.appear.onNow') : outfitDescription(li.outfits, o) || t('scene.prompt.noDescription')
+                    about: o.id === wearing(li, outfit) ? t('scene.prompt.appear.onNow') : outfitDescription(li.outfits, o) || t('scene.prompt.noDescription'),
+                    used: outfitUse(li.outfits, o) !== '',
+                    use: outfitUse(li.outfits, o)
                   }),
                   ...others.map(([name, description]) => t('scene.prompt.appear.picture', { tag: `[EXPRESSION: ${name}]`, description }))
                 ]

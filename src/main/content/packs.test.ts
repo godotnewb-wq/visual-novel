@@ -6,7 +6,7 @@ import { ZipFile } from 'yazl'
 import { describe, expect, it } from 'vitest'
 import { packChoices, packManifest, packPreview, type PackManifest } from '../../shared/packs'
 import { ADDON_PREFIX } from '../../shared/editor'
-import { loadWithAddons, saveLook, saveLoveInterest, saveMajor, saveTrait } from './addons'
+import { loadWithAddons, removeUnusedAssets, saveGroup, saveLook, saveLoveInterest, saveMajor, saveTrait } from './addons'
 import { installPack, readPackManifest, unpackFiles, writePack } from './packs'
 
 const packDir = join(process.cwd(), 'content', 'default')
@@ -58,8 +58,8 @@ describe('what can go in a pack', () => {
     const { content } = madeByPlayer()
     const faye = packChoices(content, asPlayer).characters.find((who) => who.id === 'faye')
     expect(faye?.outfits.map((one) => one.id).sort()).toEqual(['beach', 'default'])
-    expect(faye?.expressions).toEqual([{ id: 'smug', name: 'Smug', pictures: 1, clips: 0 }])
-    expect(faye?.acts).toEqual([{ id: 'spoons', name: 'Spoons', pictures: 1, clips: 1 }])
+    expect(faye?.expressions).toEqual([{ id: 'smug', name: 'Smug', pictures: 1, clips: 0, sounds: 0 }])
+    expect(faye?.acts).toEqual([{ id: 'spoons', name: 'Spoons', pictures: 1, clips: 1, sounds: 0 }])
     expect(packChoices(content, asPlayer).characters.map((who) => who.id)).toEqual(['faye'])
   })
 
@@ -87,7 +87,7 @@ describe('a pack from one player to another', () => {
     const theirs = loadWithAddons(packDir, addonDir).content
     const manifest = await readPackManifest(path)
     const { done } = await install(path, addonDir, theirs, manifest)
-    expect(done).toEqual({ installed: ['faye'], majors: [], notes: [] })
+    expect(done).toEqual({ installed: ['faye'], majors: [], groups: [], notes: [] })
 
     const { content, info } = loadWithAddons(packDir, addonDir)
     expect(info.issues).toEqual([])
@@ -118,7 +118,7 @@ describe('a pack from one player to another', () => {
     const addonDir = join(folder(), 'addons')
     const { files } = await unpackFiles(path, manifest)
     const done = installPack(addonDir, loadWithAddons(packDir, addonDir).content, absent, files, ADDON_PREFIX)
-    expect(done).toEqual({ installed: [], majors: [], notes: ['Nobody is not in this game: passed over.'] })
+    expect(done).toEqual({ installed: [], majors: [], groups: [], notes: ['Nobody is not in this game: passed over.'] })
     expect(packPreview(loadWithAddons(packDir, addonDir).content, absent).characters[0].present).toBe(false)
   })
 
@@ -142,7 +142,7 @@ describe('a whole character and her major', () => {
     expect(saveMajor(addonDir, start, { major, college: { id: 'night-school', name: 'Night School' } })).toEqual([])
     expect(saveTrait(addonDir, { id: 'dreamy', name: 'Dreamy', definition: 'Far away.' })).toEqual([])
     mkdirSync(join(addonDir, 'sprites', 'mira'), { recursive: true })
-    for (const name of ['neutral.png', 'room.webp', 'walk.png', 'birth.png', 'act.mp4']) writeFileSync(join(addonDir, 'sprites', 'mira', name), name)
+    for (const name of ['neutral.png', 'room.webp', 'walk.png', 'birth.png', 'act.mp4', 'giggle.ogg']) writeFileSync(join(addonDir, 'sprites', 'mira', name), name)
     const file = (name: string) => `${ADDON_PREFIX}sprites/mira/${name}`
     const content = loadWithAddons(packDir, addonDir).content
     const her = {
@@ -159,7 +159,10 @@ describe('a whole character and her major', () => {
       tonedAnimations: {},
       room: { name: 'a garret', description: '', locationId: content.locations[0].id, images: { day: file('room.webp') } },
       birthPictures: { dark: file('birth.png') },
-      walkSprite: file('walk.png')
+      walkSprite: file('walk.png'),
+      // Her own voice: one sound, and no catch phrase.
+      reactions: { giggle: file('giggle.ogg') },
+      catchphrases: {}
     }
     expect(saveLoveInterest(addonDir, content, her)).toEqual([])
     const loaded = loadWithAddons(packDir, addonDir)
@@ -177,7 +180,7 @@ describe('a whole character and her major', () => {
   it('is offered for what the player made, and not for what the game has', () => {
     const made = mira()
     const { characters, majors } = packChoices(made.content, made.info)
-    expect(characters.find((who) => who.id === 'mira')?.whole).toEqual({ id: 'mira', name: 'Mira Vale', pictures: 4, clips: 1 })
+    expect(characters.find((who) => who.id === 'mira')?.whole).toEqual({ id: 'mira', name: 'Mira Vale', pictures: 4, clips: 1, sounds: 1 })
     expect(characters.find((who) => who.id === 'faye')).toBeUndefined()
     expect(majors).toEqual([{ code: 'DRM', name: 'Dreaming' }])
   })
@@ -188,10 +191,10 @@ describe('a whole character and her major', () => {
     const addonDir = join(folder(), 'addons')
     const theirs = loadWithAddons(packDir, addonDir)
     const manifest = await readPackManifest(path)
-    expect(packPreview(theirs.content, manifest)).toMatchObject({ looks: ['Dreamy'], majors: [{ name: 'Dreaming', present: false }], people: [{ id: 'mira', replaces: false, pictures: 4, clips: 1 }] })
+    expect(packPreview(theirs.content, manifest)).toMatchObject({ looks: ['Dreamy'], majors: [{ name: 'Dreaming', present: false }], people: [{ id: 'mira', replaces: false, pictures: 4, clips: 1, sounds: 1 }] })
 
     const { done } = await install(path, addonDir, theirs.content, manifest)
-    expect(done).toEqual({ installed: ['mira'], majors: ['DRM'], notes: [] })
+    expect(done).toEqual({ installed: ['mira'], majors: ['DRM'], groups: [], notes: [] })
     const { content, info } = loadWithAddons(packDir, addonDir)
     expect(info.issues).toEqual([])
     const her = content.loveInterests.find((li) => li.id === 'mira')!
@@ -201,7 +204,10 @@ describe('a whole character and her major', () => {
     expect(her.room?.images?.day).toBe('addons/sprites/mira/room.webp')
     expect([her.walkSprite, her.birthPictures.dark]).toEqual(['addons/sprites/mira/walk.png', 'addons/sprites/mira/birth.png'])
     expect(her.animations[0].clip).toBe('addons/sprites/mira/act.mp4')
-    expect(readdirSync(join(addonDir, 'sprites', 'mira'))).toHaveLength(5)
+    // Her voice came with her, and was kept when what she no longer uses was cleared away.
+    expect(her.reactions).toEqual({ giggle: 'addons/sprites/mira/giggle.ogg' })
+    expect(removeUnusedAssets(addonDir, her, ADDON_PREFIX)).toEqual([])
+    expect(readdirSync(join(addonDir, 'sprites', 'mira'))).toHaveLength(6)
   })
 
   it('keeps of her friends only those this game has', async () => {
@@ -214,6 +220,39 @@ describe('a whole character and her major', () => {
     expect(loadWithAddons(packDir, addonDir).content.loveInterests.find((li) => li.id === 'mira')?.friends).toEqual(['faye'])
   })
 
+  it('brings her group scenes with the game\'s own characters, and leaves behind what needs another of the player\'s', async () => {
+    // Nova, another of the player's own, is Mira's friend; Mira has a scene with Faye, who is the game's, and one with Nova.
+    const made = mira()
+    const faye = made.content.loveInterests.find((li) => li.id === 'faye')!
+    expect(saveLoveInterest(made.addonDir, made.content, { ...faye, id: 'nova', name: 'Nova', studies: undefined, traitIds: [], friends: [], enemies: [] })).toEqual([])
+    const withNova = loadWithAddons(packDir, made.addonDir).content
+    const her = withNova.loveInterests.find((li) => li.id === 'mira')!
+    expect(saveLoveInterest(made.addonDir, withNova, { ...her, friends: ['faye', 'nova'] })).toEqual([])
+    mkdirSync(join(made.addonDir, 'sprites', 'group-mira-faye'), { recursive: true })
+    writeFileSync(join(made.addonDir, 'sprites', 'group-mira-faye', 'kiss.png'), 'kiss')
+    const scene = (id: string, memberIds: string[]) => ({ id, name: id, memberIds, animations: [{ id: 'blowjob', name: 'Blowjob', description: '', image: `${ADDON_PREFIX}sprites/group-${id}/kiss.png`, loop: true }], tonedAnimations: {}, positions: {} })
+    const now = loadWithAddons(packDir, made.addonDir).content
+    expect(saveGroup(made.addonDir, now, scene('mira-faye', ['mira', 'faye']))).toEqual([])
+    expect(saveGroup(made.addonDir, loadWithAddons(packDir, made.addonDir).content, { ...scene('mira-nova', ['mira', 'nova']), animations: [] })).toEqual([])
+    const from = loadWithAddons(packDir, made.addonDir)
+
+    const manifest = packManifest(from.content, { name: 'Mira', characters: {}, people: ['mira'], majors: [] }, from.info)
+    expect(manifest.people[0].friends).toEqual(['faye'])
+    expect(manifest.groups.map((group) => group.id)).toEqual(['mira-faye'])
+
+    const path = join(folder(), 'mira.zip')
+    await writePack(path, manifest, onDisk(made.addonDir))
+    const addonDir = join(folder(), 'addons')
+    const read = await readPackManifest(path)
+    expect(packPreview(loadWithAddons(packDir, addonDir).content, read).groups).toEqual([{ name: 'mira-faye', replaces: false }])
+    const { done } = await install(path, addonDir, loadWithAddons(packDir, addonDir).content, read)
+    expect(done).toMatchObject({ installed: ['mira'], groups: ['mira-faye'], notes: [] })
+    const theirs = loadWithAddons(packDir, addonDir)
+    expect(theirs.info.issues).toEqual([])
+    expect(theirs.content.groups.find((group) => group.id === 'mira-faye')?.animations[0].image).toBe('addons/sprites/group-mira-faye/kiss.png')
+    expect(readdirSync(join(addonDir, 'sprites', 'group-mira-faye'))).toEqual(['kiss.png'])
+  })
+
   it('leaves the major a game already has as it is, and packs a major on its own', async () => {
     const made = mira()
     const manifest = packManifest(made.content, { name: 'x', characters: {}, people: [], majors: ['DRM'] }, made.info)
@@ -223,7 +262,7 @@ describe('a whole character and her major', () => {
     const path = join(folder(), 'major.zip')
     await writePack(path, manifest, onDisk(made.addonDir))
     const { done } = await install(path, made.addonDir, made.content, manifest)
-    expect(done).toEqual({ installed: [], majors: [], notes: [] })
+    expect(done).toEqual({ installed: [], majors: [], groups: [], notes: [] })
   })
 
   it('takes away what was copied for one who cannot be saved', async () => {

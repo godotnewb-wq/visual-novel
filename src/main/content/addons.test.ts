@@ -80,6 +80,20 @@ describe('loadWithAddons', () => {
     expect(wornOutfit(content, createInitialState(content), loaded, 'swimsuit')?.id).not.toBe('swimsuit')
   })
 
+  it('keeps two of the player\'s own who are friends, whichever of their files is read first', () => {
+    // "mira" is read before "zara": she names a friend who has not been tried yet, and neither may be lost for it.
+    const dir = addons()
+    expect(saveLoveInterest(dir, base.content, { ...mira, friends: [] })).toEqual([])
+    const withMira = loadWithAddons(packDir, dir).content
+    expect(saveLoveInterest(dir, withMira, { ...mira, id: 'zara', name: 'Zara', friends: ['mira'] })).toEqual([])
+    const both = loadWithAddons(packDir, dir).content
+    expect(saveLoveInterest(dir, both, { ...both.loveInterests.find((li) => li.id === 'mira')!, friends: ['zara', 'faye'] })).toEqual([])
+    const { content, info } = loadWithAddons(packDir, dir)
+    expect(info.issues).toEqual([])
+    expect(content.loveInterests.find((li) => li.id === 'mira')?.friends).toEqual(['zara', 'faye'])
+    expect(content.loveInterests.find((li) => li.id === 'zara')?.friends).toEqual(['mira'])
+  })
+
   it('plays the player\'s own characters in another language as their author wrote them, beside the translated ones', () => {
     // A translation is laid over the game's own content, and add-ons over that: a character it has no words for, or one
     // of the game's own that an add-on rewrote, keeps the add-on's English, and nothing of it is lost or refused.

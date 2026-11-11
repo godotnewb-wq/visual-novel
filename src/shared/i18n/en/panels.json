@@ -379,5 +379,8 @@
   "phone.forget": "Forget",
   "phone.app.trips": "Trips",
   "phone.app.tripsTitle": "Trips",
-  "phone.page": "Page {page} of {pages}"
+  "phone.page": "Page {page} of {pages}",
+  "phone.app.news": "News",
+  "phone.app.newsTitle": "Breedhaven News",
+  "phone.news.none": "No news yet."
 }

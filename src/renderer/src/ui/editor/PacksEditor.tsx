@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { EditorInfo } from '../../../../shared/editor'
 import type { ContentPack } from '../../../../shared/model'
-import { packChoices, type PackChoice, type PackPicks, type PackPreview } from '../../../../shared/packs'
+import { packChoices, packManifest, type PackChoice, type PackChoices, type PackPicks, type PackPreview } from '../../../../shared/packs'
 import { errorMessage } from '../../errors'
 import { Button } from '../Button'
 import { Dialog } from '../Dialog'
@@ -26,7 +26,8 @@ const NOTHING: PackPicks = { outfits: [], expressions: [], acts: [] }
 // What the list opens in place of a character: the majors.
 const MAJORS = 'majors'
 
-const filesOf = ({ pictures, clips }: PackChoice) => t('editor.packs.files', { pictures, clips, both: pictures > 0 && clips > 0 })
+const filesOf = ({ pictures, clips, sounds }: Pick<PackChoice, 'pictures' | 'clips' | 'sounds'>) =>
+  [t('editor.packs.files', { pictures, clips, both: pictures > 0 && clips > 0 }), sounds > 0 ? t('editor.packs.sounds', { n: sounds }) : ''].filter((part) => part !== '').join(' · ')
 
 const countOf = (picks: PackPicks | undefined) => (picks ? picks.outfits.length + picks.expressions.length + picks.acts.length : 0)
 
@@ -59,6 +60,28 @@ export function PacksEditor({ content, onContent, switcher }: Props) {
   const toggle = (list: string[], id: string, on: boolean) => (on ? [...list, id] : list.filter((one) => one !== id))
 
   const setPicks = (id: string, kind: keyof PackPicks, ids: string[]) => setPicked((now) => ({ ...now, [id]: { ...(now[id] ?? NOTHING), [kind]: ids } }))
+
+  /**
+   * Everything of hers a pack can take, chosen in one go to be looked over before the pack is made: one of the player's
+   * own goes whole, and what she needs is found by her ids; one of the game's own gives every outfit, face and act.
+   */
+  const complete = (who: PackChoices) => {
+    if (who.whole) setPeople((now) => (now.includes(who.id) ? now : [...now, who.id]))
+    else setPicked((now) => ({ ...now, [who.id]: { outfits: who.outfits.map((one) => one.id), expressions: who.expressions.map((one) => one.id), acts: who.acts.map((one) => one.id) } }))
+  }
+
+  // What a whole character brings with her, found by her ids: as the pack would hold it.
+  const comesWith = useMemo(() => {
+    if (!info || !open || !people.includes(open.id)) return undefined
+    const manifest = packManifest(content, { name: open.name, characters: {}, people: [open.id], majors: [] }, info)
+    return [
+      { title: t('editor.packs.traits'), names: manifest.traits.map((trait) => trait.name) },
+      { title: t('editor.packs.majors'), names: manifest.majors.map(({ major }) => major.subject) },
+      { title: t('editor.packs.expressions'), names: manifest.looks.expressions.map((face) => face.name) },
+      { title: t('editor.packs.acts'), names: manifest.looks.acts.map((act) => act.name) },
+      { title: t('editor.packs.groups'), names: manifest.groups.map((group) => group.name) }
+    ].filter((part) => part.names.length > 0)
+  }, [content, info, open, people])
 
   async function run(work: () => Promise<void>) {
     setBusy(true)
@@ -114,10 +137,11 @@ export function PacksEditor({ content, onContent, switcher }: Props) {
             {preview.people.map((who) => (
               <section key={who.id}>
                 <strong>{who.name}</strong>
-                <span className="hint">{t('editor.packs.files', { pictures: who.pictures, clips: who.clips, both: who.pictures > 0 && who.clips > 0 })}</span>
+                <span className="hint">{filesOf(who)}</span>
                 {who.replaces && <span className="notice">{t('editor.packs.previewReplacesWhole')}</span>}
               </section>
             ))}
+            {preview.groups.length > 0 && <p className="hint">{t('editor.packs.previewGroups', { names: preview.groups.map((group) => group.name).join(', ') })}</p>}
             {preview.characters.map((who) => (
               <section key={who.id}>
                 <strong>{who.name}</strong>
@@ -173,9 +197,16 @@ export function PacksEditor({ content, onContent, switcher }: Props) {
           <div>
             <h1>{showingMajors ? t('editor.packs.majors') : (open?.name ?? t('editor.packs.title'))}</h1>
           </div>
-          <Button disabled={busy} onClick={() => void look()}>
-            {busy ? t('editor.packs.importing') : t('editor.packs.import')}
-          </Button>
+          <div className="actions">
+            {open && (
+              <Button disabled={busy} title={t('editor.packs.completeTitle')} onClick={() => complete(open)}>
+                {t('editor.packs.complete')}
+              </Button>
+            )}
+            <Button disabled={busy} onClick={() => void look()}>
+              {busy ? t('editor.packs.importing') : t('editor.packs.import')}
+            </Button>
+          </div>
         </div>
 
         <div className="editor-body">
@@ -199,6 +230,17 @@ export function PacksEditor({ content, onContent, switcher }: Props) {
               <span>{t('editor.packs.whole')}</span>
               <span className="hint">{filesOf(open.whole)}</span>
             </label>
+          )}
+          {comesWith && comesWith.length > 0 && (
+            <Group title={t('editor.packs.comesWith')}>
+              <div className="pack-choices">
+                {comesWith.map((part) => (
+                  <p key={part.title}>
+                    <strong>{part.title}</strong> <span className="hint">{part.names.join(', ')}</span>
+                  </p>
+                ))}
+              </div>
+            </Group>
           )}
           {open &&
             !people.includes(open.id) &&

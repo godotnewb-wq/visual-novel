@@ -17,6 +17,9 @@ export const IPC = {
   courier: 'ai:courier',
   feed: 'ai:feed',
   feedPicture: 'ai:feedPicture',
+  /** The day's news story, written; and its picture, drawn. */
+  news: 'ai:news',
+  newsPicture: 'ai:newsPicture',
   /** A picture the player takes in a scene, written and drawn, for his own post. */
   scenePhoto: 'ai:scenePhoto',
   selfie: 'ai:selfie',

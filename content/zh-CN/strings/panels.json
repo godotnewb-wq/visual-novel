@@ -379,5 +379,8 @@
   "phone.forget": "忘记",
   "phone.app.trips": "旅行",
   "phone.app.tripsTitle": "旅行",
-  "phone.page": "第 {page} 页，共 {pages} 页"
+  "phone.page": "第 {page} 页，共 {pages} 页",
+  "phone.app.news": "新闻",
+  "phone.app.newsTitle": "蕃荫新闻",
+  "phone.news.none": "暂无新闻。"
 }

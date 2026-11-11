@@ -48,9 +48,14 @@ describe('the Simplified Chinese translation', () => {
         : value
     // The loading tips are a list of text and nothing else: translated whole, one for one.
     expect(chinese.tips).toHaveLength(english.tips.length)
-    const { codex: _ec, housing: englishHousing, tips: _et, loveInterests: englishCharacters, npcs: englishNpcs, ...sourceRest } = english
-    const { codex: _cc, housing: chineseHousing, tips: _ct, loveInterests: chineseCharacters, npcs: chineseNpcs, ...translatedRest } = chinese
+    const { codex: _ec, housing: englishHousing, tips: _et, loveInterests: englishCharacters, npcs: englishNpcs, canon: englishCanon, ...sourceRest } = english
+    const { codex: _cc, housing: chineseHousing, tips: _ct, loveInterests: chineseCharacters, npcs: chineseNpcs, canon: chineseCanon, ...translatedRest } = chinese
     expect(withoutLabels(translatedRest)).toEqual(withoutLabels(sourceRest))
+    // What a canon event changes of a character is translated as she is: her role is words, like her bio.
+    expect(withoutLabels(chineseCanon, ['role'])).toEqual(withoutLabels(englishCanon, ['role']))
+    const memories = (canon: typeof englishCanon) => canon.events.flatMap((event) => event.steps.flatMap((step) => step.cases.flatMap((one) => one.memories.map((memory) => memory.summary))))
+    expect(memories(chineseCanon).every((summary) => /\p{Script=Han}/u.test(summary))).toBe(true)
+    expect(memories(chineseCanon).map(placeholders)).toEqual(memories(englishCanon).map(placeholders))
     // A character's role is the words she is introduced by (a house room's is what the game does with it, and stays);
     // her aliases are the language's own way of writing her name, which only the parser reads.
     expect(withoutLabels([...chineseCharacters, ...chineseNpcs], ['role', 'aliases'])).toEqual(withoutLabels([...englishCharacters, ...englishNpcs], ['role', 'aliases']))

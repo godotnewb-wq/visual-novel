@@ -5,10 +5,10 @@ import type { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { open, type Entry, type ZipFile as ReadZip } from 'yauzl'
 import { ZipFile as WriteZip } from 'yazl'
-import type { ContentPack, LoveInterest } from '../../shared/model'
-import { PACK_MANIFEST, PackManifestSchema, allPackFiles, isPackFile, withPackPaths, withPacked, withPersonPaths, type PackManifest } from '../../shared/packs'
+import { groupFiles, type ContentPack, type LoveInterest } from '../../shared/model'
+import { PACK_MANIFEST, PackManifestSchema, allPackFiles, isPackFile, withGroupPaths, withPackPaths, withPacked, withPersonPaths, type PackManifest } from '../../shared/packs'
 import { t } from '../../shared/i18n'
-import { importAsset, saveLook, saveLoveInterest, saveMajor, saveTrait } from './addons'
+import { importAsset, saveGroup, saveLook, saveLoveInterest, saveMajor, saveTrait } from './addons'
 
 // The most a manifest can be, and the most a pack can unpack to: enough for any real pack, and short of filling a disk.
 const MAX_MANIFEST_BYTES = 16 * 1024 * 1024
@@ -54,8 +54,10 @@ export async function writePack(target: string, manifest: PackManifest, file: (p
   }
   const characters = manifest.characters.map((who) => withPackPaths(who, placed(who.id)))
   const people = manifest.people.map((who) => withPersonPaths(who, placed(who.id)))
+  // A group scene's files go in a folder of its own, as they are kept in the content.
+  const groups = manifest.groups.map((group) => withGroupPaths(group, placed(groupFiles(group.id))))
   for (const [entry, source] of entries) zip.addFile(source, entry, { compress: false })
-  zip.addBuffer(Buffer.from(`${JSON.stringify({ ...manifest, characters, people }, null, 2)}\n`), PACK_MANIFEST)
+  zip.addBuffer(Buffer.from(`${JSON.stringify({ ...manifest, characters, people, groups }, null, 2)}\n`), PACK_MANIFEST)
   zip.end()
   const part = `${target}.part`
   try {
@@ -145,6 +147,8 @@ export interface PackInstall {
   installed: string[]
   /** The subjects it added, by code. */
   majors: string[]
+  /** The group scenes it added, by id. */
+  groups: string[]
   /** Why anything was passed over. */
   notes: string[]
 }
@@ -188,24 +192,37 @@ export function installPack(addonDir: string, content: ContentPack, manifest: Pa
     }
   }
 
-  /** Saves one character with her files copied in, and takes them away again if she can't be saved. */
-  const save = (id: string, name: string, make: (copy: (path: string) => string | undefined) => LoveInterest): void => {
+  /** Copies a pack's files into a folder of the add-ons, each once however often it is named; and takes them away again. */
+  const copier = (folder: string) => {
     const copied = new Map<string, string>()
     const copy = (path: string): string | undefined => {
       const unpacked = files.get(path)
       if (!unpacked) return undefined
       const known = copied.get(path)
       if (known) return known
-      const made = importAsset(addonDir, id, unpacked, prefix, plainName(path))
+      const made = importAsset(addonDir, folder, unpacked, prefix, plainName(path))
       copied.set(path, made)
       return made
     }
-    const problems = saveLoveInterest(addonDir, now, make(copy))
+    const undo = () => {
+      for (const path of copied.values()) rmSync(join(addonDir, prefix ? path.slice(prefix.length) : path), { force: true })
+    }
+    return { copy, undo }
+  }
+
+  /** Saves one character with her files copied in, and takes them away again if she can't be saved. */
+  const save = (id: string, name: string, make: (copy: (path: string) => string | undefined) => LoveInterest): void => {
+    const { copy, undo } = copier(id)
+    const made = make(copy)
+    const problems = saveLoveInterest(addonDir, now, made)
     if (problems.length === 0) {
       installed.push(id)
+      // A group scene she is in is checked against a game that has her.
+      const list = made.kind === 'npc' ? 'npcs' : 'loveInterests'
+      now = { ...now, [list]: [...(now[list] as LoveInterest[]).filter((one) => one.id !== id), made] }
       return
     }
-    for (const path of copied.values()) rmSync(join(addonDir, prefix ? path.slice(prefix.length) : path), { force: true })
+    undo()
     notes.push(t('editor.packs.characterLeftOut', { name, why: problems[0] }))
   }
 
@@ -222,5 +239,22 @@ export function installPack(addonDir: string, content: ContentPack, manifest: Pa
     if (who) save(who.id, who.name, (copy) => withPacked(who, withPackPaths(packed, copy)))
     else notes.push(t('editor.packs.notInGame', { name: packed.name }))
   }
-  return { installed, majors, notes }
+  // Group scenes last, once those in them are here. One with someone this game lacks is passed over.
+  const groups: string[] = []
+  for (const group of manifest.groups) {
+    const present = (id: string) => [...now.loveInterests, ...now.npcs].some((one) => one.id === id)
+    if (!group.memberIds.every(present)) {
+      notes.push(t('editor.packs.groupLeftOut', { name: group.name }))
+      continue
+    }
+    const { copy, undo } = copier(groupFiles(group.id))
+    const problems = saveGroup(addonDir, now, withGroupPaths(group, copy))
+    if (problems.length > 0) {
+      undo()
+      notes.push(t('editor.packs.lookLeftOut', { name: group.name, why: problems[0] }))
+      continue
+    }
+    groups.push(group.id)
+  }
+  return { installed, majors, groups, notes }
 }

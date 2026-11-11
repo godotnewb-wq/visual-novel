@@ -437,6 +437,19 @@ export function sexWrittenOf(reply: string, cast: Pick<LoveInterest, 'id' | 'nam
  * address is ("Thank you, love."), so that "I love it" is not one. Alone in a scene, every unnamed line is hers.
  */
 export function catchphraseIn(reply: string, cast: Pick<LoveInterest, 'id' | 'name' | 'catchphrases'>[], leadId: string): string | undefined {
+  return catchphraseAt(reply, cast, leadId)?.file
+}
+
+// What sets off a word of address: punctuation, and the full-width marks Chinese writes it with.
+const STOPS = ',.;:!?—–\\-，。；：！？、…'
+// A script written without spaces between words.
+const UNSPACED = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u
+
+/**
+ * The same, with the line it is said in, as the reply's lines are read (`dialogueLines`): so that it is heard when that
+ * line is on screen, not when the reply arrives.
+ */
+export function catchphraseAt(reply: string, cast: Pick<LoveInterest, 'id' | 'name' | 'catchphrases'>[], leadId: string): { file: string; line: string } | undefined {
   const alone = cast.length < 2
   const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   for (const line of dialogueLines(reply.replace(/\[[^\]\n]*\]/g, ''), cast)) {
@@ -448,9 +461,15 @@ export function catchphraseIn(reply: string, cast: Pick<LoveInterest, 'id' | 'na
     for (const [phrase, file] of Object.entries(who.catchphrases)) {
       if (!file) continue
       const word = escape(plainName(phrase))
+      // A phrase in a script that sets no spaces between words (帅哥) has no word to stand apart as: it is heard set
+      // off by punctuation, full-width or not, or by the line's start or end, on one side at least.
+      if (UNSPACED.test(phrase)) {
+        if (new RegExp(`(?:^|[${STOPS}]\\s*)${word}|${word}\\s*(?:[${STOPS}]|$)`, 'u').test(said)) return { file, line: line.text }
+        continue
+      }
       const set = new RegExp(`(?:^|[^\\p{L}\\p{N}'])${word}(?=$|[^\\p{L}\\p{N}'])`, 'u')
-      const offset = new RegExp(`(?:^\\s*|[,.;:!?—–-]\\s*)${word}(?![\\p{L}\\p{N}'])|${word}\\s*(?:[,.;:!?—–-]|$)`, 'u')
-      if (set.test(said) && offset.test(said)) return file
+      const offset = new RegExp(`(?:^\\s*|[${STOPS}]\\s*)${word}(?![\\p{L}\\p{N}'])|${word}\\s*(?:[${STOPS}]|$)`, 'u')
+      if (set.test(said) && offset.test(said)) return { file, line: line.text }
     }
   }
   return undefined

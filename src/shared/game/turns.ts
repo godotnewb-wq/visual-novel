@@ -15,7 +15,7 @@ export interface Turn {
 export const MAX_TURNS_KEPT = 30
 
 // What reaches the player from outside the scene while it goes on (posts, messages). Taking a turn back does not undo these.
-const KEPT_ACROSS = ['feed', 'feedDay', 'feedPlans', 'courier'] as const
+const KEPT_ACROSS = ['feed', 'feedDay', 'feedPlans', 'courier', 'news', 'newsDay', 'newsPlan', 'newsReported', 'newsQueue'] as const
 
 /**
  * A turn as it is written to a save. A turn changes little, so what is kept is only what

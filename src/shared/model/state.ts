@@ -11,6 +11,8 @@ import { ChildSchema, PregnancySchema } from './pregnancy'
 import { EmploymentSchema } from './job'
 import { BondSchema } from './relationship'
 import { PostPlanSchema, PostSchema } from './feed'
+import { NewsItemSchema, NewsPlanSchema } from './news'
+import { CanonChangeSchema, CanonFiredSchema } from './canon'
 import { CourierNoteSchema, StatSchema } from './stats'
 import { SkinToneSchema } from './skin'
 
@@ -196,6 +198,24 @@ export const GameStateSchema = z.object({
   feedPlans: z.array(PostPlanSchema).default([]),
   /** The game time up to which he has looked at the feed: a post that went up after it is new to him. */
   feedSeen: z.number().int().default(-1),
+  /** The day's news, oldest first: the stories the News app shows and love interests have heard. */
+  news: z.array(NewsItemSchema).default([]),
+  /** The last day whose news was decided: once a day, however far the clock jumped. */
+  newsDay: z.number().int().default(-1),
+  /** The day's story, decided and not yet written: kept with the game, so that one saved before it was written is still. */
+  newsPlan: NewsPlanSchema.optional(),
+  /** The game time up to which he has read the news. */
+  newsSeen: z.number().int().default(-1),
+  /** The milestones of his that have been news, each once: by id and when it happened. */
+  newsReported: z.array(z.string()).default([]),
+  /** Stories waiting their day: the news runs one a day, and what more there is runs on the days after. */
+  newsQueue: z.array(NewsPlanSchema).default([]),
+  /** The last day the world's own story was looked at: once a day, however far the clock jumped. */
+  canonDay: z.number().int().default(-1),
+  /** The canon steps that have happened, by step id: the case each went by, and the day. */
+  canonFired: z.record(z.string(), CanonFiredSchema).default({}),
+  /** What canon events have changed of love interests for the rest of the game, by id. */
+  canonChanges: z.record(z.string(), CanonChangeSchema).default({}),
   /** The last day on which the drama engine had someone turn up in a scene. */
   dramaDay: z.number().int(),
   /**
