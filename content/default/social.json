@@ -1,0 +1,47 @@
+{
+  "dailyChance": 0.55,
+  "cooldownDays": 0,
+  "invitationDays": 14,
+  "fromHour": 10,
+  "kept": 60,
+  "weights": {
+    "friendship": 10,
+    "fallingOut": 7,
+    "feud": 4,
+    "peace": 5,
+    "spark": 6,
+    "parting": 3,
+    "gossip": 12,
+    "invitation": 10,
+    "alliance": 14,
+    "outing": 12
+  },
+  "outingSize": 4,
+  "allianceDays": 10,
+  "allianceTrust": -6,
+  "overHim": 12,
+  "acquaintance": 2,
+  "perCircle": 4,
+  "warm": 6,
+  "sparkMinTie": 30,
+  "invitationMinDesire": 40,
+  "tie": {
+    "friendship": 12,
+    "fallingOut": -15,
+    "feud": -20,
+    "peace": 10,
+    "spark": 15,
+    "parting": -10,
+    "outing": 4
+  },
+  "gossip": {
+    "praise": 3,
+    "warning": -4,
+    "betrayal": -8
+  },
+  "quarrelTrust": -3,
+  "tellChance": 0.65,
+  "enemyDecay": 1,
+  "friendGrowth": 1,
+  "friendsUpTo": 60
+}

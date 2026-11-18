@@ -78,8 +78,8 @@ export const SocietiesConfigSchema = z.object({
   fairId: z.string(),
   /** How long a meeting runs. */
   hours: z.number().int().min(1).default(1),
-  /** The most societies the player may belong to at once, and the most students one society holds. */
-  maxJoined: z.number().int().min(1).default(2),
+  /** The most societies the player may belong to at once (left out: as many as he likes), and the most students one society holds. */
+  maxJoined: z.number().int().min(1).optional(),
   maxMembers: z.number().int().min(1).default(2),
   /** Stat points an hour of a meeting is worth, and what it costs. */
   statGain: z.number().min(0).default(1),

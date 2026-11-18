@@ -42,6 +42,8 @@ const OPTIONAL_FILES = {
   expedition: 'expedition.json',
   pregnancy: 'pregnancy.json',
   drama: 'drama.json',
+  // What happens between the women on its own.
+  social: 'social.json',
   items: 'items.json',
   stalls: 'stalls.json',
   poker: 'poker.json',

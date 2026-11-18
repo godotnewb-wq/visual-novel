@@ -5,8 +5,9 @@ import { factor } from './modifiers'
 import { firstNames } from './scene'
 import { t } from '../i18n'
 
-// What sharing a scene does for how two love interests feel about each other.
+// What sharing a scene does for how two love interests feel about each other. Enemies thaw very little for being in a room together.
 const SCENE_TIE_GAIN = 5
+const ENEMIES_SCENE_TIE_GAIN = 1
 
 /** The key two love interests' tie is stored under, whichever order they are named in. */
 export function tieKey(a: string, b: string): string {
@@ -30,12 +31,18 @@ export function changeTie(content: ContentPack, state: GameState, a: string, b: 
   return { ...state, ties: { ...state.ties, [tieKey(a, b)]: value } }
 }
 
-/** Everyone who shared a scene grows a little closer to each other, pair by pair: more so where he understands the pull between them. */
+/**
+ * Everyone who shared a scene grows a little closer to each other, pair by pair: more so where he understands the pull
+ * between them, and hardly at all between two who are enemies.
+ */
 export function growTies(content: ContentPack, state: GameState, cast: string[], amount = SCENE_TIE_GAIN): GameState {
-  if (amount > 0) amount = Math.round(amount * factor(content, state, 'bonds'))
+  const grown = (base: number) => (base > 0 ? Math.round(base * factor(content, state, 'bonds')) : base)
   let after = state
   for (let i = 0; i < cast.length; i++) {
-    for (let j = i + 1; j < cast.length; j++) after = changeTie(content, after, cast[i], cast[j], amount)
+    for (let j = i + 1; j < cast.length; j++) {
+      const enemies = state.rapport[cast[i]]?.enemies.includes(cast[j]) ?? false
+      after = changeTie(content, after, cast[i], cast[j], grown(enemies && amount === SCENE_TIE_GAIN ? ENEMIES_SCENE_TIE_GAIN : amount))
+    }
   }
   return after
 }

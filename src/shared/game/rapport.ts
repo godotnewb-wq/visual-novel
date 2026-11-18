@@ -2,8 +2,8 @@ import { kindOf, type ContentPack, type GameState, type Rapport } from '../model
 import { tieKey } from './bonds'
 import { t } from '../i18n'
 
-/** What two love interests are to each other, apart from anything either is to the player. */
-export const RELATIONS = ['friends', 'enemies', 'neither'] as const
+/** What two love interests are to each other, apart from anything either is to the player. Lovers are friends who have taken each other to bed. */
+export const RELATIONS = ['friends', 'enemies', 'lovers', 'neither'] as const
 export type Relation = (typeof RELATIONS)[number]
 
 // How many friends and enemies a student is brought up to at the start of a game.
@@ -21,12 +21,18 @@ function random(seed: number): () => number {
   }
 }
 
-const none = (): Rapport => ({ friends: [], enemies: [] })
+const none = (): Rapport => ({ friends: [], enemies: [], lovers: [] })
 
-/** What two love interests are to each other. Being friends or enemies always goes both ways. */
+/** What two love interests are to each other. Being friends, enemies or lovers always goes both ways. */
 export function relationBetween(state: Pick<GameState, 'rapport'>, a: string, b: string): Relation {
   const mine = state.rapport[a]
-  return mine?.friends.includes(b) ? 'friends' : mine?.enemies.includes(b) ? 'enemies' : 'neither'
+  return mine?.lovers?.includes(b) ? 'lovers' : mine?.friends.includes(b) ? 'friends' : mine?.enemies.includes(b) ? 'enemies' : 'neither'
+}
+
+/** Whether two love interests are on friendly terms: friends, or lovers. */
+export function onFriendlyTerms(state: Pick<GameState, 'rapport'>, a: string, b: string): boolean {
+  const relation = relationBetween(state, a, b)
+  return relation === 'friends' || relation === 'lovers'
 }
 
 /** Notes that he has seen these love interests in a scene together, every pair of them. The same state when nothing is new. */
@@ -41,14 +47,15 @@ export function knownRelation(state: Pick<GameState, 'rapport' | 'seenTogether'>
   return state.seenTogether.includes(tieKey(a, b)) ? relationBetween(state, a, b) : undefined
 }
 
-/** Makes two love interests friends, enemies or neither, on both sides at once. */
+/** Makes two love interests friends, enemies, lovers or neither, on both sides at once. */
 export function setRelation<S extends Pick<GameState, 'rapport'>>(state: S, a: string, b: string, relation: Relation): S {
   if (a === b || relationBetween(state, a, b) === relation) return state
   const side = (id: string, other: string): Rapport => {
-    const { friends, enemies } = state.rapport[id] ?? none()
+    const { friends, enemies, lovers = [] } = state.rapport[id] ?? none()
     return {
       friends: [...friends.filter((x) => x !== other), ...(relation === 'friends' ? [other] : [])],
-      enemies: [...enemies.filter((x) => x !== other), ...(relation === 'enemies' ? [other] : [])]
+      enemies: [...enemies.filter((x) => x !== other), ...(relation === 'enemies' ? [other] : [])],
+      lovers: [...lovers.filter((x) => x !== other), ...(relation === 'lovers' ? [other] : [])]
     }
   }
   return { ...state, rapport: { ...state.rapport, [a]: side(a, b), [b]: side(b, a) } }
@@ -102,6 +109,7 @@ export function describeRapport(content: ContentPack, state: GameState, presentI
       const relation = relationBetween(state, a, b)
       if (relation === 'friends') lines.push(t('scene.rapport.friends', { a: first(a), b: first(b) }))
       if (relation === 'enemies') lines.push(t('scene.rapport.enemies', { a: first(a), b: first(b) }))
+      if (relation === 'lovers') lines.push(t('scene.rapport.lovers', { a: first(a), b: first(b), player: state.player.name }))
     }
   }
   return lines

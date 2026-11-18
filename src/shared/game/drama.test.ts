@@ -13,7 +13,7 @@ const content = loadContentPack(join(process.cwd(), 'content', 'default'))
 /** A game in which nobody is anybody's friend or enemy yet, and the player is somewhere public, so that each test sets up only what it is about. */
 function fresh(seed = 1): GameState {
   const state = createInitialState(content, 'Pat', seed)
-  return { ...state, locationId: 'lumen', rapport: Object.fromEntries(Object.keys(state.rapport).map((id) => [id, { friends: [], enemies: [] }])) }
+  return { ...state, locationId: 'lumen', rapport: Object.fromEntries(Object.keys(state.rapport).map((id) => [id, { friends: [], enemies: [], lovers: [] }])) }
 }
 const feels = (state: GameState, id: string, affection: number, desire = 0): GameState => ({
   ...state,

@@ -1,6 +1,8 @@
 import { BANTER_MOMENTS, type BanterLine } from './game/banter'
 import { MOMENTS } from './game/momentLines'
 import type { CoursePick } from './game/coursePick'
+import type { WrittenHappening } from './game/social'
+import type { Relation } from './game/rapport'
 import { z } from 'zod'
 import { NewsPlanSchema, type LoveInterest, type Major, type NewsSource } from './model'
 import type { MajorIdea } from './game/draftMajor'
@@ -99,7 +101,7 @@ export interface SummarizeResponse {
   /** What the player found out about the love interests in the scene, as each one's summary told it. */
   revealed: { loveInterestId: string; factId: string }[]
   /** Pairs of love interests who became friends, enemies or neither over the scene. */
-  rapport: { a: string; b: string; relation: 'friends' | 'enemies' | 'neither' }[]
+  rapport: { a: string; b: string; relation: Relation }[]
   /** What the player paid for in the scene and what it came to, when he paid for anything. */
   spending?: { amount: number; on: string }
   /** Set when the LLM could not be used for at least one of them, which then got the plain fallback note. */
@@ -224,6 +226,16 @@ export interface NewsResponse {
   error?: string
 }
 
+/** A happening between two love interests to write: the game, and which of its happenings. */
+export const HappeningRequestSchema = z.object({ state: GameStateSchema, happeningId: z.string() })
+export type HappeningRequest = z.input<typeof HappeningRequestSchema>
+
+/** What was written of it, or why nothing was. */
+export interface HappeningResponse {
+  written?: WrittenHappening
+  error?: string
+}
+
 export const NewsPictureRequestSchema = z.object({ name: z.string().max(64), prompt: z.string().max(4000) })
 export type NewsPictureRequest = z.input<typeof NewsPictureRequestSchema>
 
@@ -285,6 +297,8 @@ export interface RendererApi {
   news(request: NewsRequest): Promise<NewsResponse>
   /** Draws the day's news picture on ComfyUI, where it is set up. Never rejects: no picture is null. */
   newsPicture(request: NewsPictureRequest): Promise<FeedPictureResponse>
+  /** Writes what happened between two love interests in the LLM's words, and what each remembers of it. Never rejects. */
+  happening(request: HappeningRequest): Promise<HappeningResponse>
   scenePhoto(request: SceneRequest): Promise<ScenePhotoResponse>
   /** Writes and draws the selfie he asked a love interest for. Never rejects. */
   selfie(request: SelfieRequest): Promise<SelfieResponse>

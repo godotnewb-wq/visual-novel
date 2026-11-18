@@ -45,7 +45,7 @@ export function canJoinSociety(content: ContentPack, state: GameState, id: strin
   const reasons: string[] = []
   if (!societiesOpen(content, state)) reasons.push(t('game.societies.atFair'))
   if (state.societies.includes(id)) reasons.push(t('game.societies.alreadyBelong'))
-  else if (state.societies.length >= config.maxJoined) reasons.push(t('game.societies.atMost', { max: config.maxJoined }))
+  else if (config.maxJoined !== undefined && state.societies.length >= config.maxJoined) reasons.push(t('game.societies.atMost', { max: config.maxJoined }))
   const clash = joinedSocieties(content, state).find((other) => societiesClash(content, society, other))
   if (clash) reasons.push(t('game.societies.clash', { society: clash.name }))
   return { ok: reasons.length === 0, reasons }

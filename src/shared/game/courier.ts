@@ -7,6 +7,7 @@ import { bondOf, statusOf } from './bonds'
 import { addMemory } from './memory'
 import { appealLevel } from './stats'
 import { seedOf } from './seed'
+import { moodOf } from './moods'
 import { t } from '../i18n'
 
 // About 600 tokens of the exchange are shown to a character, at four characters a token.
@@ -281,6 +282,8 @@ const DM_IN_BOND = 0.08
 const DM_COMMITTED = 0.15
 // Someone who has just been with him has it fresh in mind.
 const DM_JUST_SEEN = 0.1
+// Someone the day has left in a mood has something on her mind, and him to say it to.
+const DM_IN_MOOD = 0.1
 const DM_MAX_CHANCE = 0.6
 // Someone whose last message he never answered is slower to write another.
 const DM_UNANSWERED = 0.5
@@ -306,7 +309,8 @@ export function chanceOfDm(content: ContentPack, state: GameState, loveInterestI
     DM_AT_FULL_DESIRE * Math.max(0, rel.desire / max) +
     DM_PER_APPEAL * appealLevel(state, li) +
     (status ? (status.committed ? DM_COMMITTED : DM_IN_BOND) : 0) +
-    (justSeen.includes(loveInterestId) ? DM_JUST_SEEN : 0)
+    (justSeen.includes(loveInterestId) ? DM_JUST_SEEN : 0) +
+    (moodOf(content, state, loveInterestId) ? DM_IN_MOOD : 0)
   const unanswered = thread.length > 0 && thread[thread.length - 1].from === 'them'
   return Math.min(DM_MAX_CHANCE, chance) * (unanswered ? DM_UNANSWERED : 1)
 }

@@ -56,7 +56,7 @@ const tour = (folder: string, speakerId: string | undefined, steps: [MessageKey,
 const welcomeId = content.orientation?.intro?.speakerId
 tour('interface-tour', welcomeId, [
   ['shell.interfaceTour.welcome', { name: PLAYER_TOKEN }], ['shell.interfaceTour.phone'], ['shell.interfaceTour.chats'], ['shell.interfaceTour.friends'],
-  ['shell.interfaceTour.updates'], ['shell.interfaceTour.jobs'], ...(content.societies ? [['shell.interfaceTour.societies', { most: content.societies.maxJoined }] as [MessageKey, Record<string, unknown>]] : []),
+  ['shell.interfaceTour.updates'], ['shell.interfaceTour.jobs'], ...(content.societies ? [['shell.interfaceTour.societies', { most: content.societies.maxJoined ?? 'none' }] as [MessageKey, Record<string, unknown>]] : []),
   ['shell.interfaceTour.shop'], ['shell.interfaceTour.map'], ['shell.interfaceTour.mapPin'], ['shell.interfaceTour.bag'], ['shell.interfaceTour.bagGrid'],
   ['shell.interfaceTour.relics'], ['shell.interfaceTour.calendar'], ['shell.interfaceTour.calendarSheet'], ['shell.interfaceTour.help'], ['shell.interfaceTour.last']
 ])

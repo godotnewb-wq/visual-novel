@@ -1300,7 +1300,7 @@ function Societies({ content, state, onChange }: { content: ContentPack; state: 
         <p className="hint phone-empty">{t('panels.phone.noSocieties')}</p>
       ) : (
         <SectionRule>
-          {t('panels.phone.joinedOf', { n: state.societies.length, max: config.maxJoined })}
+          {t('panels.phone.joinedOf', { n: state.societies.length, max: config.maxJoined ?? 'none' })}
         </SectionRule>
       )}
       {all.map((society) => {
@@ -1524,6 +1524,7 @@ function About({ content, state, li }: { content: ContentPack; state: GameState;
             <strong title={`${value}`}>{tieLevel(content, value)?.name ?? value}</strong>
             {relation === 'friends' && <span className="chip fact">{t('panels.phone.friends')}</span>}
             {relation === 'enemies' && <span className="chip fact disliked">{t('panels.phone.enemies')}</span>}
+            {relation === 'lovers' && <span className="chip madder">{t('panels.phone.lovers')}</span>}
           </span>
         </div>
       ))}

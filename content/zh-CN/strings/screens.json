@@ -53,7 +53,7 @@
   "dayView.eventPart": "{event}：{part}",
   "dayView.societies": "社团",
   "dayView.browseSocieties": "浏览社团",
-  "dayView.placeJoined": "{place} · 已加入 {joined}/{max}",
+  "dayView.placeJoined": "{place} · {max, select, none {已加入 {joined}} other {已加入 {joined}/{max}}}",
   "dayView.cards": "牌局",
   "dayView.pokerStakes": "${small}/${big} · 每手最多 ${cap}",
   "dayView.goDown": "进入{name}",

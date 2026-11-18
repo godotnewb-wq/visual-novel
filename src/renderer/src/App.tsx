@@ -129,6 +129,13 @@ import {
   canonDue,
   canonRound,
   withCanon,
+  socialDue,
+  socialRound,
+  pendingHappenings,
+  writeHappening,
+  hearHappening,
+  untoldHappening,
+  tellingBrief,
   dramaDue,
   noteTogether,
   arrivalCue,
@@ -647,6 +654,49 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
       return newsDue(content, happened) ? newsRound(content, happened) : happened
     })
   }, [idle, over, state, content])
+  // From mid-morning, what passed between the women since yesterday happens: one thing at most, applied at once.
+  useEffect(() => {
+    if (!idle || over || !socialDue(content, state)) return
+    setState((current) => (socialDue(content, current) ? socialRound(content, current) : current))
+  }, [idle, over, state, content])
+  // Each happening is then written in the LLM's words in the background, and whoever is to tell him writes to him. Each
+  // is tried once a run: one that fails keeps the game's plain words, and the teller is let off so that she is not asked
+  // again and again. A note that comes back after the game has been left is dropped.
+  const triedHappenings = useRef(new Set<string>())
+  const tellingHappening = useRef(false)
+  const [happeningsDone, setHappeningsDone] = useState(0)
+  useEffect(() => {
+    if (tellingHappening.current || over) return
+    const { weatherSeed } = state
+    const next = pendingHappenings(state).find((one) => !triedHappenings.current.has(`${weatherSeed}:${one.id}`))
+    if (!next) return
+    triedHappenings.current.add(`${weatherSeed}:${next.id}`)
+    tellingHappening.current = true
+    void (async () => {
+      let told = state
+      if (!next.written) {
+        const { written } = await window.api.happening({ state, happeningId: next.id })
+        if (written) {
+          told = writeHappening(content, told, next.id, written)
+          setState((current) => (current.weatherSeed === weatherSeed ? writeHappening(content, current, next.id, written) : current))
+        }
+      }
+      const tellerId = next.tellerId
+      if (!tellerId || next.heard) return
+      const happening = told.happenings.find((one) => one.id === next.id) ?? next
+      const sent = await window.api.courier({ state: told, loveInterestId: tellerId, news: tellingBrief(content, told, happening) })
+      setState((current) => {
+        if (current.weatherSeed !== weatherSeed) return current
+        if (!sent.text) return untoldHappening(current, next.id)
+        return hearHappening(addNote(current, tellerId, { from: 'them', text: sent.text, proposal: happening.proposal ?? sent.proposal, read: false }), next.id)
+      })
+    })()
+      .catch(() => undefined)
+      .finally(() => {
+        tellingHappening.current = false
+        setHappeningsDone((count) => count + 1)
+      })
+  }, [state.happenings, state.weatherSeed, over, happeningsDone])
   // The day's story is written and drawn in the background, once each time the game is run: one that fails waits for
   // the next run, or gives way to the next day's. It runs with no picture where ComfyUI is not set up.
   const writingNews = useRef(false)
@@ -1040,7 +1090,8 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
       loveInterestId: appointment.loveInterestId,
       companionIds: appointment.companionIds,
       nsfw: false,
-      beats: [{ activityName: appointment.title, locationName: placeName(at) }],
+      // A plan made with more in mind than the plan itself says so to the scene.
+      beats: [{ activityName: appointment.title, locationName: placeName(at), direction: appointment.direction }],
       messages: [],
       planned: true,
       outing: true,

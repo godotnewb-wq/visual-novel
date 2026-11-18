@@ -20,6 +20,8 @@ export const IPC = {
   /** The day's news story, written; and its picture, drawn. */
   news: 'ai:news',
   newsPicture: 'ai:newsPicture',
+  /** What happened between two love interests, written in the LLM's words, with each one's memory of it. */
+  happening: 'ai:happening',
   /** A picture the player takes in a scene, written and drawn, for his own post. */
   scenePhoto: 'ai:scenePhoto',
   selfie: 'ai:selfie',

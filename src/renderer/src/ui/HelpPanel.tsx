@@ -197,7 +197,7 @@ export function HelpPanel({ content, state, tab: opening = 'Basics', onClose }: 
                       fair: content.calendar.events.find((event) => event.id === content.societies!.fairId)?.name ?? t('shell.help.societiesTheirFair')
                     })}
                   </li>
-                  <li>{t('shell.help.societiesMost', { most: content.societies.maxJoined })}</li>
+                  <li>{t('shell.help.societiesMost', { most: content.societies.maxJoined ?? 'none' })}</li>
                   {content.societies.fair && <li>{t('shell.help.societiesFair')}</li>}
                   <li>{t('shell.help.societiesScene')}</li>
                 </ul>

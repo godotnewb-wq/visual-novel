@@ -128,7 +128,7 @@ export function dramaHooks(content: ContentPack, state: GameState, scene: Pick<S
       const score =
         claim.value * romance +
         jealous.reduce((sum, trait) => sum + trait.drama.jealousy, 0) +
-        (relation === 'enemies' ? config.enemyOfLead : relation === 'friends' ? config.friendOfLead : 0) +
+        (relation === 'enemies' ? config.enemyOfLead : relation === 'friends' || relation === 'lovers' ? config.friendOfLead : 0) +
         rel.desire / 10 +
         5 * appealLevel(state, actor) +
         secrets
@@ -140,7 +140,7 @@ export function dramaHooks(content: ContentPack, state: GameState, scene: Pick<S
           claim.why,
           t('game.drama.didNotKnow', { player, lead: leadName, date: isDate }),
           ...jealous.map((trait) => t('game.drama.jealousTrait', { trait: trait.name.toLowerCase(), definition: trait.definition })),
-          relation === 'enemies' ? t('game.drama.enemiesAlready', { lead: leadName }) : relation === 'friends' ? t('game.drama.friendsWorse', { lead: leadName }) : '',
+          relation === 'enemies' ? t('game.drama.enemiesAlready', { lead: leadName }) : relation === 'friends' ? t('game.drama.friendsWorse', { lead: leadName }) : relation === 'lovers' ? t('game.drama.loversWorse', { lead: leadName }) : '',
           ...nearbyReason
         ].filter(Boolean)
       })
@@ -160,14 +160,15 @@ export function dramaHooks(content: ContentPack, state: GameState, scene: Pick<S
       })
     }
 
-    if (relation === 'friends') {
+    // A lover of hers drops in as a friend would, and is said to be what she is.
+    if (relation === 'friends' || relation === 'lovers') {
       const unmet = !hasMet(state, actor.id)
       hooks.push({
         actorId: actor.id,
         kind: 'friend',
         score: placed(config.friend + (unmet ? config.unmet : 0) + traits.reduce((sum, trait) => sum + trait.drama.sociable, 0)),
         reasons: [
-          t('game.drama.friendOf', { lead: leadName }),
+          t(relation === 'lovers' ? 'game.drama.loverOf' : 'game.drama.friendOf', { lead: leadName }),
           unmet ? t('game.drama.introduces', { player, lead: leadName }) : t('game.drama.knowsHer', { player }),
           ...nearbyReason
         ]

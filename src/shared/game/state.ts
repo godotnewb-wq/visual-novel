@@ -77,6 +77,8 @@ export function createInitialState(
     canonFired: {},
     canonChanges: {},
     dramaDay: -1,
+    socialDay: -1,
+    happenings: [],
     dayOutfits: { day: -1, worn: {} },
     events: [],
     housing: HousingStateSchema.parse({}),

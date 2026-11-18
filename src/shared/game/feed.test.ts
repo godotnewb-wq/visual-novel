@@ -134,7 +134,7 @@ describe('the feed', () => {
   })
 
   it('lists who could be in the picture with her: whoever is there then, and her friends', () => {
-    const friendly = { ...start, feedDay: -1, contacts: [ana.id], rapport: { [ana.id]: { friends: [bea.id], enemies: [] } } }
+    const friendly = { ...start, feedDay: -1, contacts: [ana.id], rapport: { [ana.id]: { friends: [bea.id], enemies: [], lovers: [] } } }
     const [plan] = feedRound(content, friendly).plans
     expect(plan.company).toContain(bea.id)
     expect(plan.company).not.toContain(ana.id)

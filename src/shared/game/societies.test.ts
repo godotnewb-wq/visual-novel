@@ -59,6 +59,9 @@ describe('joining a society', () => {
     expect(two.societies).toEqual(['chess', 'walkers'])
     expect(canJoinSociety(content, leaveSociety(two, 'walkers'), 'walkers').ok).toBe(true)
     expect(canJoinSociety(content, { ...two, societies: ['walkers', 'x'] }, 'chess').reasons).toEqual(['You can belong to 2 societies at most'])
+    // A pack that sets no limit has none.
+    const unlimited = { ...content, societies: { ...content.societies!, maxJoined: undefined } }
+    expect(canJoinSociety(unlimited, { ...two, societies: ['walkers', 'x', 'y', 'z'] }, 'chess').ok).toBe(true)
   })
 })
 

@@ -28,6 +28,7 @@ import { describePlayerRoom, playerRoom, describePlace, describeRoom, describeWe
 import { backgroundFor, isIndoors } from './schedule'
 import { weatherOn } from './weather'
 import { recentNews } from './news'
+import { describeMood } from './moods'
 import { presentEventNow } from './presents'
 import { describeRelicUses, relicTraitIds } from './relics'
 import { trustOf } from './modifiers'
@@ -377,6 +378,9 @@ export function buildCharacterPrompt(input: PromptInput): string {
       ...describeAppeal(state, li)
     ]),
 
+    // What the last thing that happened to her among the women has left her feeling today.
+    !isNpc && section(t('scene.prompt.mood.title'), [describeMood(content, state, li.id, player.name)]),
+
     // What a relic he has used in the scene has set going, as a rule of it.
     !isNpc && !byCourier && (input.relics ?? []).length > 0 && section(t('scene.prompt.relics.title'), describeRelicUses(input.relics ?? [], player.name, group)),
     // Whether each woman here will go to bed with him is the game's to say, and what she takes against the Bloom.
@@ -414,6 +418,7 @@ export function buildCharacterPrompt(input: PromptInput): string {
         statusOf(content, bondOf(state, c.id)) &&
           t('scene.prompt.companion.bond', { player: player.name, status: statusOf(content, bondOf(state, c.id))?.name }),
         last && t('scene.prompt.companion.last', { player: player.name, summary: last.summary }),
+        describeMood(content, state, c.id, player.name, false),
         labelled(t('scene.prompt.label.likes'), c.likes),
         labelled(t('scene.prompt.label.dislikes'), c.dislikes)
       ])

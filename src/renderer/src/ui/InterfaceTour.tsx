@@ -46,7 +46,7 @@ export function InterfaceTour({ content, state, panel, onOpen, onDone, onSkip }:
           {
             target: '[data-tour="phone-societies"]',
             before: phone('societies'),
-            text: t('shell.interfaceTour.societies', { most: content.societies.maxJoined })
+            text: t('shell.interfaceTour.societies', { most: content.societies.maxJoined ?? 'none' })
           }
         ]
       : []),

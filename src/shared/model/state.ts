@@ -13,6 +13,7 @@ import { BondSchema } from './relationship'
 import { PostPlanSchema, PostSchema } from './feed'
 import { NewsItemSchema, NewsPlanSchema } from './news'
 import { CanonChangeSchema, CanonFiredSchema } from './canon'
+import { HappeningSchema } from './social'
 import { CourierNoteSchema, StatSchema } from './stats'
 import { SkinToneSchema } from './skin'
 
@@ -63,8 +64,8 @@ export const MemorySchema = z.object({
 })
 export type Memory = z.infer<typeof MemorySchema>
 
-/** One love interest's friends and enemies among the others, by id. */
-export const RapportSchema = z.object({ friends: z.array(z.string()), enemies: z.array(z.string()) })
+/** One love interest's friends, enemies and lovers among the others, by id. Saves from before two of them could be lovers have no lovers. */
+export const RapportSchema = z.object({ friends: z.array(z.string()), enemies: z.array(z.string()), lovers: z.array(z.string()).default([]) })
 export type Rapport = z.infer<typeof RapportSchema>
 
 /** Everything that changes during play. Plain JSON, so it doubles as the save format. */
@@ -218,6 +219,10 @@ export const GameStateSchema = z.object({
   canonChanges: z.record(z.string(), CanonChangeSchema).default({}),
   /** The last day on which the drama engine had someone turn up in a scene. */
   dramaDay: z.number().int(),
+  /** The last day the social web was looked at: once a day, however far the clock jumped. */
+  socialDay: z.number().int().default(-1),
+  /** What has happened between the love interests on its own, oldest first. Kept for the game's own reckoning; never listed to him. */
+  happenings: z.array(HappeningSchema).default([]),
   /**
    * What each character has on today, by id: an outfit that lasts the day, drawn as the day began or changed into in a
    * scene since. `day` is the day it is for; another day's is gone.

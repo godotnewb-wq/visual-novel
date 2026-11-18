@@ -2,6 +2,7 @@ import { CanonSchema } from './canon'
 import { z } from 'zod'
 import { t } from '../i18n'
 import { DramaConfigSchema } from './drama'
+import { SocialConfigSchema } from './social'
 import { ExpeditionConfigSchema, HIM } from './expedition'
 import { HousingConfigSchema } from './housing'
 import { SyllabusSchema } from './syllabus'
@@ -72,6 +73,8 @@ export const ContentPackSchema = z.object({
   expedition: ExpeditionConfigSchema.optional(),
   /** What the drama engine weighs things with. Without it, nobody turns up uninvited. */
   drama: DramaConfigSchema.optional(),
+  /** What the social web weighs things with. Without it, nothing happens between the women on its own. */
+  social: SocialConfigSchema.optional(),
   items: z.array(ItemSchema).default([]),
   stalls: z.array(StallSchema).default([]),
   /** Cards for money, at one place. Without it there is no game. */

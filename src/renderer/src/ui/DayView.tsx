@@ -442,7 +442,7 @@ export function DayView(props: Props) {
             <span>
               {later
                 ? t('screens.dayView.placeOpens', { place: content.locations.find((l) => l.id === fair.locationId)?.name ?? '', time: `${String(fair.startHour ?? 0).padStart(2, '0')}:00` })
-                : t('screens.dayView.placeJoined', { place: content.locations.find((l) => l.id === fair.locationId)?.name ?? '', joined: state.societies.length, max: String(content.societies?.maxJoined) })}
+                : t('screens.dayView.placeJoined', { place: content.locations.find((l) => l.id === fair.locationId)?.name ?? '', joined: state.societies.length, max: String(content.societies?.maxJoined ?? 'none') })}
             </span>
             <ChevronIcon size={18} />
           </button>

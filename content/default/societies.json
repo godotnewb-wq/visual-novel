@@ -1,7 +1,6 @@
 {
   "fairId": "societies-fair",
   "hours": 1,
-  "maxJoined": 3,
   "maxMembers": 2,
   "statGain": 1,
   "energy": 6,

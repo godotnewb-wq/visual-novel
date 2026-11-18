@@ -53,7 +53,7 @@
   "dayView.eventPart": "{event}: {part}",
   "dayView.societies": "Societies",
   "dayView.browseSocieties": "Browse the societies",
-  "dayView.placeJoined": "{place} · {joined} of {max} joined",
+  "dayView.placeJoined": "{place} · {max, select, none {{joined} joined} other {{joined} of {max} joined}}",
   "dayView.cards": "Cards",
   "dayView.pokerStakes": "${small}/${big} · ${cap} a hand at most",
   "dayView.goDown": "Go down into {name}",

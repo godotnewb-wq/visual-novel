@@ -145,7 +145,7 @@ export function FairView({ content, state, onHello, onTalk, onJoin, onLeave }: P
         <h2>{event?.name.replace(/^the /, 'The ') ?? t('panels.fair.theFair')}</h2>
         <span className="caps">
           {clock(hour)}
-          {event && t('panels.fair.until', { time: clock(fairCloses(event)) })} · {t('panels.fair.joinedOf', { n: state.societies.length, max: config?.maxJoined })}
+          {event && t('panels.fair.until', { time: clock(fairCloses(event)) })} · {t('panels.fair.joinedOf', { n: state.societies.length, max: config?.maxJoined ?? 'none' })}
         </span>
       </Ornate>
 

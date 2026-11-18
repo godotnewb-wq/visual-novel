@@ -16,7 +16,9 @@ export const ProposalSchema = z.object({
   hours: z.number().int().min(1),
   locationId: z.string(),
   /** Her story beat this asks him to, by the stage that earned it: a scene written for her, not an ordinary plan. */
-  story: z.string().optional()
+  story: z.string().optional(),
+  /** What the scene it opens is told beyond the plan itself: what those who asked him have in mind. */
+  direction: z.string().optional()
 })
 export type Proposal = z.infer<typeof ProposalSchema>
 

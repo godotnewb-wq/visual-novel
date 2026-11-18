@@ -26,6 +26,7 @@ import { SettingsStore, type KeyCipher } from './settings/store'
 import { RenameSaveRequestSchema, SaveRequestSchema, SlotIdSchema } from '../shared/saves'
 import { contactsSaid, DM_CLOSE, DM_OPEN, fallbackInvite, messageText } from '../shared/game/courier'
 import { buildNewsPrompt, parseNewsReply } from '../shared/game/news'
+import { buildHappeningPrompt, parseHappeningReply } from '../shared/game/social'
 import { buildFeedPrompt, buildScenePhotoPrompt, draftPosts, feedReplyTokens, feedShortfall, parseFeedReply, parseScenePhoto, PLAYER_POSTER, scenePhotoDraft } from '../shared/game/feed'
 import { toDate } from '../shared/game/calendar'
 import { attendableEvents, buildEventPrompt, parseGeneratedEvents } from '../shared/game/events'
@@ -92,6 +93,8 @@ import {
   NewsRequestSchema,
   NewsPictureRequestSchema,
   type NewsResponse,
+  HappeningRequestSchema,
+  type HappeningResponse,
   type ScenePhotoResponse,
   type SelfieResponse,
   PlanOutingRequestSchema,
@@ -1038,6 +1041,22 @@ function registerIpc(
         }
       }
       return await write(false)
+    } catch (error) {
+      return { error: (error as Error).message }
+    }
+  })
+  // Never fails: what happened between two of them, in the LLM's words. The game has already gone on in its own.
+  ipcMain.handle(IPC.happening, async (_event, raw: unknown): Promise<HappeningResponse> => {
+    const { state, happeningId } = HappeningRequestSchema.parse(raw)
+    const content = readBy(state)
+    const happening = state.happenings.find((one) => one.id === happeningId)
+    if (!happening) return { error: `Unknown happening "${happeningId}"` }
+    if (!isConfigured(settings.get().main)) return { error: notConfigured() }
+    try {
+      const { system, user } = buildHappeningPrompt(content, state, happening)
+      const { reply } = await completeWithFallback(settings.get(), false, { system, messages: [{ role: 'user', content: user }], temperature: SUMMARY_TEMPERATURE })
+      const written = parseHappeningReply(reply, happening)
+      return written ? { written } : { error: t('llm.social.unreadable') }
     } catch (error) {
       return { error: (error as Error).message }
     }

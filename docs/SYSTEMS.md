@@ -1050,7 +1050,7 @@ asked to write. The choice is kept in `settings.json` with the LLM profiles.
   (`societies.test.ts` pins both, and that each meets after `coursework.dayEnd` somewhere
   open). Nothing meets, and none can be joined, until their fair (`fairId`, the Societies
   Fair) begins; at the fair the day view offers its tables, and after it he joins or leaves
-  them on the phone's Societies app, up to `maxJoined` (3) at once and never two that meet
+  them on the phone's Societies app, as many at once as he likes (`maxJoined`, left out in the shipped pack, can set a limit) and never two that meet
   in the same hour. A meeting can clash with a shift. While one meets its members are at
   its place (`locationOf`, after classes and before work), it is on his calendar and is
   the next thing on his day like a class, and going is a scene with whichever of them are
@@ -1636,3 +1636,75 @@ outing. Classes, orientation and talks with NPCs are left alone.
   memory for everyone who was there.
 - The engine decides who, as what and when. It keeps no record of who has found out about
   whom and changes no meters itself; what comes of it is the LLM's to play.
+
+## The social web
+
+What the love interests are to each other, and what happens between them when he is not there
+(`src/shared/game/social.ts`, tuned by `content/default/social.json`; `src/shared/game/rapport.ts` for what they are;
+`src/shared/game/moods.ts` for what it leaves each of them feeling).
+
+- **What two of them are** (`rapport` in the save, `relationBetween`): `friends`, `enemies`, `lovers` or `neither`,
+  always both ways. A game begins with what the content says (`friends`, `enemies` on a character) and then deals each
+  student a few of each at random (`assignRapport`); lovers only ever come of play. Beside it is their **tie**
+  (`ties`, 0 to `meterMax`), how warm they are, which sharing a scene grows a little (`growTies`: 5, and 1 between
+  enemies) and the web moves. He knows what two of them are only once he has seen them together or been told
+  (`seenTogether`, `knownRelation`): the Friends app shows it then, with a Lovers chip for two who are.
+- **The day**: from `fromHour` (10:00), an idle effect in `App.tsx` looks at the web once a day (`socialRound`,
+  `socialDay`), however far the clock jumped. Enemies' ties cool by `enemyDecay` a day; friends' grow by `friendGrowth`
+  up to `friendsUpTo` (60, where a spark can pass), lovers' to the top. Then every pair is weighed for
+  each thing that could pass between them (`candidates`), and with `dailyChance` one happens: the kind first, by the
+  kinds' `weights` among those with anyone to happen to (so the mix is the pack's whatever the size of the cast; a kind
+  at 0 never happens), then to whom, by how strongly each candidate pulls. The rolls are seeded, so the same day of the
+  same game goes the same way. Nothing for `cooldownDays` after the last.
+  - `friendship`: two who are nothing to each other become friends; likelier for each class, society or friend they
+    share (`perCircle`), when their tie is already friendly (`warm`), and for sociable traits (`drama.sociable`). Two
+    who share nothing weigh only `acquaintance`.
+  - `falling-out`: friends fall out, to neither. `feud`: two who are nothing to each other, with little warmth, become
+    enemies, only where there is a reason: him, a circle shared, or a jealous or competitive temper. `parting`: lovers
+    part, to friends. Each is likelier for jealous traits (`drama.jealousy`), and when both have
+    a claim on him (an arrangement, dating, or wanting him) it is **over him** (`overHim` added, `overPlayer` on the
+    happening): both lose `quarrelTrust` of trust in him, and lovers parted over him are not even friends after.
+  - `peace`: enemies make it up, to neither; likelier for what they share and for easygoing traits.
+  - `spark`: friends whose tie is `sparkMinTie` or more become lovers; likelier for promiscuous, flirtatious,
+    sex-addict and exhibitionist traits and the warmer they are; never for a prude, nor for one who has promised him to
+    see only him (an exclusive arrangement the other is not in).
+  - `gossip`: one tells another about him, either way between two who are not enemies and have both met him, when the
+    teller has something to say (`gossipTone`): a good word from one at Friend or better who trusts him (`praise`, the
+    hearer's affection up), a warning from one who trusts him little (`warning`, trust down), or, from one who has slept
+    with him to one he has promised exclusivity, that he has (`betrayal`: trust and affection down, the most of the three).
+  - `invitation`: two lovers who both want him (`invitationMinDesire`, Friend or better, his Bloomr given) ask him to a
+    night with them both: a plan found as an invitation's is (`proposeMeeting`, at the first one's room's location, both
+    along), with a `direction` on the proposal that the scene it opens runs on (what they have in mind). Not again for
+    `invitationDays`. Keeping it is an ordinary kept plan with both of them in it; whether each goes to bed with him is
+    the sex gate's as ever.
+  - `alliance`: within `allianceDays` of a betrayal gossip between two of them (one told the other he has been with her,
+    behind a promise), the one told, if he has her Bloomr, asks him to face the two of them: a plan as the invitation's,
+    whose direction has them compared notes and backing each other, each free to walk out (`[LEAVES]`). Both lose
+    `allianceTrust` of trust in him and become friends over it, whatever they were. Once per finding-out.
+  - `outing`: a **clique** goes out together for the evening. Cliques are not written anywhere: they are read off the web
+    (`cliques`), everyone joined to everyone else by friendship or love, at most `outingSize` (4) strong, the
+    best-connected of a larger circle and those closest to her. One candidate a clique, to somewhere public that is open
+    of an evening (`PLACE_DRAW`), likelier for sociable traits. Everyone who went grows `tie.outing` closer to each of
+    the others, so friends of friends warm towards a friendship of their own, and each gets a memory of the night that
+    she may bring up with him, and ask him along next time. He hears of it only so.
+- **Her mood of the day** (`src/shared/game/moods.ts`): the last happening to touch her, the day it happened and the
+  next, leaves her in a mood (`moodOf`, read off the happenings, nothing kept): glad of a friendship or a good word,
+  relieved by a peace, hurt by a falling-out or a parting, angry at a feud or an alliance or at being told of a betrayal,
+  guilty at having told it, wary after a warning, elated by a spark, eager for an invitation, glad of a night out. Her scene prompt and DMs
+  carry it under "Today" (`describeMood`), with her own memory of what caused it, and a companion's is in her block; she
+  is also likelier to write to him unprompted (`chanceOfDm`). He is never shown it.
+- **What it leaves**: the relation and the tie change at once, his meters where it touches him, and each of the two gets
+  a memory of it in the game's plain words (`happeningMemory`). The happening is kept (`happenings`, the last `kept`)
+  with its account (`happeningAccount`) and who is to tell him (`tellerId`): for an invitation the one who asks; else,
+  with `tellChance`, one of the two if he has her Bloomr (for gossip, the one told), failing that a friend or lover of
+  either whose he has, and nobody when nobody can.
+- **In the background** (`pendingHappenings`, an effect in `App.tsx`, each tried once a run): the LLM writes the account
+  and both memories in its own words (`ai:happening`, `buildHappeningPrompt`, `writeHappening` puts them in place of the
+  plain ones where those still stand), and then the teller writes to him as a DM with news (`courier`, `news:
+  tellingBrief`), the invitation's plan on her note. When her note arrives he has **heard** (`hearHappening`): the pair
+  counts as seen together, so the Friends card shows what they are. That DM is all he is shown: the game keeps the
+  happenings for its own reckoning and lists them nowhere, so what nobody tells him he learns only as the women let it
+  show in scenes, through the memories it left them. Without an LLM the web still turns and nothing is written or told.
+- **Elsewhere**: the drama engine has a lover of his date drop in as a friend of hers would, and a lover of someone with a
+  claim minds as a friend does; a scene's summary may make two of those in it lovers, as it makes friends and enemies,
+  when both their summaries say so (`sceneRapport`); `describeRapport` tells a group scene who here are lovers.
