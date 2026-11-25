@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { RendererApi } from '../shared/types'
+import { createConnectionBridge } from './connections'
 
 const api: RendererApi = {
   getContent: () => ipcRenderer.invoke(IPC.getContent),
@@ -31,10 +32,7 @@ const api: RendererApi = {
   happening: (request) => ipcRenderer.invoke(IPC.happening, request),
   scenePhoto: (request) => ipcRenderer.invoke(IPC.scenePhoto, request),
   selfie: (request) => ipcRenderer.invoke(IPC.selfie, request),
-  getSettings: () => ipcRenderer.invoke(IPC.getSettings),
-  saveSettings: (update) => ipcRenderer.invoke(IPC.saveSettings, update),
-  testConnection: (profileId) => ipcRenderer.invoke(IPC.testConnection, profileId),
-  listModels: (request) => ipcRenderer.invoke(IPC.listModels, request),
+  connections: createConnectionBridge((channel, ...args) => ipcRenderer.invoke(channel, ...args)),
   listSaves: () => ipcRenderer.invoke(IPC.listSaves),
   saveGame: (request) => ipcRenderer.invoke(IPC.saveGame, request),
   loadGame: (slotId) => ipcRenderer.invoke(IPC.loadGame, slotId),

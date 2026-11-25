@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import type { LlmProfileId } from '../../shared/settings'
 import { t } from '../../shared/i18n'
+import { Button } from './ui/Button'
 
 // Wait this long after the last keystroke before asking the endpoint for its models.
 const LOAD_DELAY_MS = 600
 
 interface Props {
-  profileId: LlmProfileId
+  profileId: string | null
   baseUrl: string
   /** A key typed into the form, or undefined to use the saved one. */
   apiKey: string | undefined
@@ -23,6 +23,7 @@ type Load = { state: 'idle' | 'loading' } | { state: 'loaded'; models: string[] 
  */
 export function ModelField({ profileId, baseUrl, apiKey, value, onChange }: Props) {
   const [load, setLoad] = useState<Load>({ state: 'idle' })
+  const [reload, setReload] = useState(0)
 
   useEffect(() => {
     if (baseUrl.trim() === '') {
@@ -32,7 +33,7 @@ export function ModelField({ profileId, baseUrl, apiKey, value, onChange }: Prop
     let cancelled = false
     setLoad({ state: 'loading' })
     const timer = setTimeout(async () => {
-      const result = await window.api.listModels({ profileId, baseUrl, apiKey })
+      const result = await window.api.connections.listModels({ profileId, baseUrl, apiKey }).catch(() => ({ models: [], error: t('llm.connections.discoveryFailed') }))
       if (cancelled) return
       setLoad(
         result.error !== undefined
@@ -44,11 +45,10 @@ export function ModelField({ profileId, baseUrl, apiKey, value, onChange }: Prop
       cancelled = true
       clearTimeout(timer)
     }
-  }, [profileId, baseUrl, apiKey])
+  }, [profileId, baseUrl, apiKey, reload])
 
-  if (load.state === 'loaded' && load.models.length > 0) return <ModelSearch profileId={profileId} models={load.models} value={value} onChange={onChange} />
-
-  return (
+  return <>
+    {load.state === 'loaded' && load.models.length > 0 ? <ModelSearch profileId={profileId} models={load.models} value={value} onChange={onChange} /> : (
     <label>
       {t('shell.modelField.model')}
       <input value={value} onChange={(e) => onChange(e.target.value)} />
@@ -59,7 +59,9 @@ export function ModelField({ profileId, baseUrl, apiKey, value, onChange }: Prop
         {load.state === 'failed' && t('shell.modelField.failed', { error: load.error })}
       </span>
     </label>
-  )
+    )}
+    <Button size="small" disabled={!baseUrl.trim() || load.state === 'loading'} onClick={() => setReload((value) => value + 1)}>{t('shell.settings.fetchModels')}</Button>
+  </>
 }
 
 /**
@@ -67,7 +69,7 @@ export function ModelField({ profileId, baseUrl, apiKey, value, onChange }: Prop
  * its own that scrolls, since a browser's own suggestions cannot. A name it does not list can still be typed, as a saved
  * model it no longer lists is kept.
  */
-function ModelSearch({ profileId, models, value, onChange }: { profileId: LlmProfileId; models: string[]; value: string; onChange: (model: string) => void }) {
+function ModelSearch({ profileId, models, value, onChange }: { profileId: string | null; models: string[]; value: string; onChange: (model: string) => void }) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   // What was typed to search with: once a model is picked, the whole list is offered again.

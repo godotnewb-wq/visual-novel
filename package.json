@@ -7,6 +7,7 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:isolated": "jiti scripts/dev-isolated.ts",
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "build:win": "electron-vite build && electron-builder --win",
@@ -50,5 +51,9 @@
     "typescript": "^7.0.2",
     "vite": "^7.3.6",
     "vitest": "^5.0.3"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true
   }
 }

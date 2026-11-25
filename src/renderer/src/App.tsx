@@ -178,7 +178,7 @@ import {
   giveGift,
   approachableAt,
   perform,
-  reconcileState,
+  resumeSavedGame,
   sceneBaseline,
   meet,
   bringPresents,
@@ -225,6 +225,7 @@ import { t } from '../../shared/i18n'
 import { EpilogueView } from './ui/EpilogueView'
 import { SavesPanel } from './SavesPanel'
 import { SettingsPanel } from './SettingsPanel'
+import { MainConnectionSelector } from './MainConnectionSelector'
 import { TitleScreen } from './TitleScreen'
 import { CalendarPanel } from './ui/CalendarPanel'
 import { AgeGate } from './ui/AgeGate'
@@ -308,17 +309,10 @@ export function App() {
   if (error) return <main className="title">{t('shell.app.loadFailed', { error })}</main>
   if (!content) return <main className="title">{t('shell.app.loading')}</main>
 
-  const start = ({ state, scene }: SaveData) =>
+  const start = (saved: SaveData) =>
     setSession({
       id: nextId.current++,
-      data: {
-        state: reconcileState(state, content),
-        // A scene with a love interest who no longer exists can't be resumed.
-        scene:
-          scene && sceneCast(scene).every((id) => withNpc(content, id).loveInterests.some((li) => li.id === id))
-            ? scene
-            : null
-      }
+      data: resumeSavedGame(content, saved)
     })
 
   if (editing)
@@ -969,7 +963,7 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
             ...placed,
             messages: [...asked.messages, response.message],
             // Once the NSFW LLM has had to take over, it keeps the scene.
-            nsfw: asked.nsfw || response.profileId === 'nsfw',
+            nsfw: asked.nsfw || response.profileRole === 'nsfw',
             // A suggestion stays on offer while the conversation moves on, until it is answered, replaced by another, or its time has gone by.
             // One the game found for what he asked is put to him whatever she made of it.
             proposal: offered ?? response.proposal ?? (response.proposalAccepted || (asked.proposal && asked.proposal.time <= at.time) ? undefined : asked.proposal),
@@ -2121,6 +2115,7 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
         // Back to the game is Escape, the mouse's back button, or a press outside it.
         <Dialog title={t('shell.app.menu')} onClose={close} narrow ornate noClose>
           <div className="pause-menu">
+            <MainConnectionSelector busy={busy || photoBusy} />
             <GrandButton label={t('shell.app.save')} icon={<SaveIcon size={22} />} onClick={() => setPanel({ kind: 'save' })} />
             <GrandButton label={t('shell.app.load')} icon={<LoadIcon size={22} />} onClick={() => setPanel({ kind: 'load' })} />
             <GrandButton label={t('shell.app.settings')} icon={<GearIcon size={22} />} onClick={() => setPanel({ kind: 'settings' })} />
@@ -2130,7 +2125,7 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
           </div>
         </Dialog>
       )}
-      {panel?.kind === 'settings' && <SettingsPanel onClose={close} />}
+      {panel?.kind === 'settings' && <SettingsPanel onClose={close} generating={busy} />}
       {panel?.kind === 'achievements' && <AchievementsPanel onClose={close} />}
       {(panel?.kind === 'save' || panel?.kind === 'load') && (
         <SavesPanel

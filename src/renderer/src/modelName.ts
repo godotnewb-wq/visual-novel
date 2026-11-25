@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { pickProfileId } from '../../shared/settings'
+import { assignedConnection, connectionSettings } from './connectionForm'
 
 /**
  * The model a line he sends goes to, for the tooltip on a Send button: read as the pointer comes onto it, so that a change
@@ -8,10 +8,7 @@ import { pickProfileId } from '../../shared/settings'
 export function useModelName(nsfw = false): { model: string; look: () => void } {
   const [model, setModel] = useState('')
   const look = () => {
-    window.api.getSettings().then(
-      (settings) => setModel(settings[pickProfileId(settings, nsfw)].model),
-      () => setModel('')
-    )
+    window.api.connections.get().then((result) => setModel(assignedConnection(connectionSettings(result), nsfw)?.model ?? '')).catch(() => setModel(''))
   }
   return { model, look }
 }

@@ -28,13 +28,7 @@ import type { PostDraft } from './game/feed'
 import type { Outing } from './game/outing'
 import type { SceneLook } from './game/scene'
 import type { RenameSaveRequest, SaveData, SaveRequest, SaveSummary, SlotId } from './saves'
-import type {
-  ListModelsRequest,
-  ListModelsResponse,
-  LlmProfileId,
-  SettingsUpdate,
-  SettingsView
-} from './settings'
+import type { ConnectionApi, ConnectionRole } from './llmConnections'
 
 /** Sent for both chat turns and end-of-scene summaries. */
 export const SceneRequestSchema = z.object({
@@ -48,7 +42,8 @@ export interface ChatResponse {
   /** The system prompt the main process assembled for this turn, for debugging. */
   systemPrompt: string
   /** Which LLM answered. The NSFW one takes over when the Main LLM declines. */
-  profileId: LlmProfileId
+  profileId: string
+  profileRole: ConnectionRole
   /** The character brought the scene to a close with this reply. */
   sceneEnded: boolean
   /** Any change of outfit, expression or animation the character asked for. */
@@ -302,12 +297,7 @@ export interface RendererApi {
   scenePhoto(request: SceneRequest): Promise<ScenePhotoResponse>
   /** Writes and draws the selfie he asked a love interest for. Never rejects. */
   selfie(request: SelfieRequest): Promise<SelfieResponse>
-  getSettings(): Promise<SettingsView>
-  saveSettings(update: SettingsUpdate): Promise<SettingsView>
-  /** Sends a tiny request through the saved settings of the given profile. */
-  testConnection(profileId: LlmProfileId): Promise<TestConnectionResponse>
-  /** Loads the models an endpoint offers. Never rejects; a failure comes back as `error`. */
-  listModels(request: ListModelsRequest): Promise<ListModelsResponse>
+  connections: ConnectionApi
   listSaves(): Promise<SaveSummary[]>
   saveGame(request: SaveRequest): Promise<SaveSummary>
   loadGame(slotId: SlotId): Promise<SaveData>

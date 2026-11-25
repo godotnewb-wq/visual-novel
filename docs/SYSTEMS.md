@@ -173,8 +173,10 @@ Read the section for a system before changing it. For what the game is and how t
   `src/shared/saves.ts`), plus an **autosave**, which is rewritten after every change. The
   autosave stands at the top of every page and cannot be saved over by hand. The list
   opens on the page of the most recent manual save, and a dot marks each page that has one.
-- A save holds the whole game state and any scene still in progress. Saves are JSON files
-  in the `saves` folder of Electron's user-data directory, one per slot.
+- A save holds the whole game state and any scene still in progress, including that scene's undo records.
+  `resumeSavedGame` in `src/shared/game/resume.ts` reconciles the state and carries those records into the session
+  when the saved cast can still be resumed; a rejected or absent scene clears its associated undo records. Saves
+  are JSON files in the `saves` folder of Electron's user-data directory, one per slot.
 - Saves from a different format version, or damaged files, are shown as unreadable rather
   than hidden. Loading tolerates content changes such as a newly added love interest.
 
@@ -334,8 +336,10 @@ asked to write. The choice is kept in `settings.json` with the LLM profiles.
 
 ## AI
 
-- **Settings** (the Settings button) hold two OpenAI-compatible endpoints: the **Main LLM**
-  and the **NSFW LLM**, each with base URL, API key, model, temperature, max reply tokens,
+- **Settings → LLMs** lists all named connections, including unassigned drafts, and assigns saved profiles to
+  **Main LLM** and optional **NSFW LLM**. Version-2 settings hold UUIDs and role references. A single editor creates,
+  edits, renames, duplicates without keys, and deletes profiles. Assigned profiles must be reassigned before deletion.
+  Each has base URL, API key, model, temperature, max reply tokens,
   a timeout (two minutes by default; drafting a character or subject waits at least three),
   and under Advanced: how hard a thinking model thinks (sent as `reasoning_effort`, OpenRouter's
   `reasoning`, or a local chat template's `enable_thinking`, by default going by the address),
@@ -344,8 +348,19 @@ asked to write. The choice is kept in `settings.json` with the LLM profiles.
   for a provider that takes one at a time; the rest wait their turn in `src/main/ai/queue.ts`,
   first come first served, one line per address), and OpenRouter's provider order, providers
   to avoid and fallbacks (`extraParameters` in `src/main/ai/openai.ts`)
-  and extra instructions. They are saved to `settings.json` in Electron's user-data folder,
-  with keys encrypted by the OS keychain where available. Keys never reach the renderer.
+  and extra instructions. `src/main/settings/connectionStore.ts` writes `settings.json` atomically, with an exact
+  original backup before legacy conversion. Invalid data reports a recovery error and is not reset. New saved keys
+  require OS encryption; keyless connections work without it, and unavailable encrypted keys are retained. Safe
+  renderer views expose only whether a key exists. Keep full user-data backups for the original encryption context.
+  Profile and global-preference forms have independent Save/Cancel transactions. Dirty navigation confirms discard;
+  failed writes retain the draft. Role selections persist immediately on success and are disabled during scene
+  generation; selecting a profile to edit does not assign it. Test uses unsaved values without writing and sends a small
+  completion; its tooltip discloses possible provider charges. Changed endpoints require explicit key entry or clear.
+  Each logical request snapshots assigned profiles and parameters for its retries; later requests see later edits.
+  The gameplay pause menu has a compact Main LLM selector (`MainConnectionSelector.tsx`). It refreshes on opening,
+  persists the main assignment on success, and retains the previous choice on error. Foreground/scene generation,
+  photo generation, and pending writes disable it. It changes no scene/history/undo state or NSFW assignment;
+  background requests already running retain their captured profiles.
 - **Scenes** start with an activity shared with a love interest. The character ends the
   scene from within the conversation: the prompt tells the LLM to finish its parting line
   with `[END SCENE]` when the player says goodbye or the moment has run its course. Left

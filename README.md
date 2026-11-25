@@ -36,8 +36,8 @@ npm run dev
 Then, in the app:
 
 1. Confirm you are 18 or over.
-2. Open **Settings** and fill in the **Main LLM**: its base URL, API key and model. The **NSFW LLM** is optional: it
-   takes over when the main one declines a reply.
+2. Open **Settings → LLMs**, select or create a named connection, enter its base URL, API key and model, and
+   **Save**. Assign it to **Main LLM**. **NSFW LLM** is optional: it handles NSFW scenes and refusal fallback.
 3. Start a **New Game**: choose your name and skin tone, and the year begins with orientation.
 
 Optional, for making content rather than playing it:
@@ -57,6 +57,7 @@ editor.
 | Command | What it does |
 |---|---|
 | `npm run dev` | Run the app with hot reload. Run from source, the editor edits the game's own content (set `BREEDHAVEN_ADDONS=1` to play it as a player would, add-ons and all). |
+| `npm run dev:isolated` | Run with separate settings, saves, add-ons, and browser storage in the Git-ignored `.dev-data/user-data/` folder. Uses player add-on mode. |
 | `npm start` | Run the last build |
 | `npm run build` | Build main, preload and renderer into `out/` |
 | `npm run typecheck` | Type-check everything, tests and scripts included |
@@ -69,6 +70,25 @@ editor.
 
 To sign and notarize the macOS build, copy `electron-builder.env.example` to `electron-builder.env` and fill in the
 Apple credentials. Without that file the build is left unsigned.
+
+For isolated development, use `npm run dev:isolated`. It starts with empty data unless you copy a backup into
+`.dev-data/user-data/` while the game is closed. `BREEDHAVEN_USER_DATA_DIR` can select another absolute directory
+for a source run; it must be separate from the live user-data directory, including its parents and children.
+The override also selects player add-on mode and is ignored by packaged builds. Standalone save and media scripts
+do not use this override; they retain their existing paths.
+
+Connection settings use version 2. The first launch converts older LLM settings and preserves the original in a
+unique `settings.json.pre-v2-*.bak` beside the settings file. Keep full user-data backups, including `Local State`,
+for encrypted-key recovery. Use `npm run dev:isolated` for feature testing with data separate from older builds.
+Keep private data and detailed verification inventories in the ignored local area. Before committing, review
+[commit privacy](docs/PRIVACY.md), including your Git author identity.
+**Test** checks the edited connection without saving it and sends a small completion that may incur provider charges.
+Connections can be renamed, duplicated without keys, and deleted after reassignment. Profile edits and global
+preferences have separate Save/Cancel controls. Role selections persist immediately; they are disabled during scene
+generation. Switching the profile being edited does not change the role assignments.
+During play, open **Menu** (Esc) to switch **Main LLM** directly. The choice saves on success and applies to later
+requests without resetting the scene. Scene/photo generation and pending assignment writes disable this selector;
+NSFW routing still uses its assigned connection.
 
 ### Previews
 

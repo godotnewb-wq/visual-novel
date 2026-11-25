@@ -1,4 +1,17 @@
 node_modules/
+.dev-data/
+
+# Accidental copies of private app data at the repository root.
+/user-data/
+/backups/
+/saves/
+/addons/
+/settings.json
+/comfy.json
+/civitai.json
+/achievements.json
+/Local State
+settings.json.pre-v2-*.bak
 out/
 dist/
 *.log

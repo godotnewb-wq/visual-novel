@@ -2,8 +2,15 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, safeStorage, sessi
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, extname, join, resolve, sep } from 'node:path'
 import { z } from 'zod'
-import { chatCompletion, listModels } from './ai/openai'
+import { chatCompletion } from './ai/openai'
+import { registerConnectionDiagnostics } from './ai/connectionDiagnostics'
+import { ConnectionStore } from './settings/connectionStore'
+import { ConnectionStoreError } from './settings/connectionErrors'
+import { registerConnectionIpc } from './settings/connectionIpc'
+import { trustedConnectionSender } from './settings/trustedSender'
+import { pathToFileURL } from 'node:url'
 import { completeWithFallback, notConfigured } from './ai/router'
+import { developmentDataDir } from './developmentData'
 import { catchphraseAt, firstNames, firstToSpeak, leavers, lookLines, namesHer, parseDirectives, sceneCast, sceneWitnesses, sexWrittenOf, validLook, whoSpoke } from '../shared/game/scene'
 import { canSleepOver } from '../shared/game/sleep'
 import { sexGate } from '../shared/game/intimacy'
@@ -22,7 +29,7 @@ import { LOOK_KINDS, isSafeId, slugify, type EditorInfo, type EditorResult } fro
 import { PackSelectionSchema, packManifest, packPreview, type PackManifest, type PackPreview } from '../shared/packs'
 import { SaveStore } from './saves/store'
 import { AchievementStore } from './achievements/store'
-import { SettingsStore, type KeyCipher } from './settings/store'
+import type { KeyCipher } from './settings/store'
 import { RenameSaveRequestSchema, SaveRequestSchema, SlotIdSchema } from '../shared/saves'
 import { contactsSaid, DM_CLOSE, DM_OPEN, fallbackInvite, messageText } from '../shared/game/courier'
 import { buildNewsPrompt, parseNewsReply } from '../shared/game/news'
@@ -74,14 +81,7 @@ import { buildDraftPrompt, DRAFT_MAX_IDEA_CHARS, DRAFT_MIN_TOKENS, parseDraft } 
 import { cardFromJson, cardFromPng, characterFromCard, type Card } from '../shared/game/sillyCard'
 import { buildMajorDraftPrompt, MAJOR_DRAFT_MIN_TOKENS, parseMajorDraft } from '../shared/game/draftMajor'
 import { excuseTool, meetingTool, moveTool, relationshipTool, revealTool, type Leaving } from './ai/tools'
-import {
-  isConfigured,
-  ListModelsRequestSchema,
-  LLM_PROFILE_IDS,
-  SettingsUpdateSchema,
-  type ListModelsResponse,
-  toView
-} from '../shared/settings'
+import { isConfigured } from '../shared/settings'
 import {
   CourierRequestSchema,
   SelfieRequestSchema,
@@ -106,8 +106,16 @@ import {
   SceneRequestSchema,
   type ChatResponse,
   type SummarizeResponse,
-  type TestConnectionResponse
 } from '../shared/types'
+
+// Both paths must change before Chromium opens its default session or any store reads live data.
+const isolatedUserData = developmentDataDir(app.isPackaged, process.env['BREEDHAVEN_USER_DATA_DIR'], app.getPath('userData'))
+if (isolatedUserData) {
+  mkdirSync(isolatedUserData, { recursive: true })
+  app.setPath('userData', isolatedUserData)
+  app.setPath('sessionData', isolatedUserData)
+  console.info(`Development user data: ${isolatedUserData}`)
+}
 
 // How many trailing messages are scanned for codex keywords.
 const CODEX_SCAN_MESSAGES = 4
@@ -176,6 +184,15 @@ function devIcon(): string | undefined {
   return join(app.getAppPath(), 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png')
 }
 
+let gameWindow: BrowserWindow | undefined
+function rendererUrl(): string {
+  return !app.isPackaged && process.env['ELECTRON_RENDERER_URL']
+    ? process.env['ELECTRON_RENDERER_URL']!
+    : pathToFileURL(join(__dirname, '../renderer/index.html')).href
+}
+const allowedConnectionSender = (event: import('electron').IpcMainInvokeEvent) =>
+  trustedConnectionSender(event, gameWindow?.webContents, rendererUrl())
+
 function createWindow(): void {
   const icon = devIcon()
   // macOS takes no icon from a window: the dock's is set instead.
@@ -194,6 +211,8 @@ function createWindow(): void {
     }
   })
 
+  gameWindow = win
+  win.on('closed', () => { if (gameWindow === win) gameWindow = undefined })
   win.once('ready-to-show', () => win.show())
 
   // A window has no right-click menu of its own. Where something is typed, or text is picked out, it gets the usual
@@ -241,7 +260,7 @@ function createWindow(): void {
 function registerIpc(
   loaded: { content: ContentPack; info: EditorInfo },
   packDir: string,
-  settings: SettingsStore,
+  settings: ConnectionStore,
   saves: SaveStore,
   comfy: ComfyStore,
   /** The player's Civitai key, for downloading models that want him signed in. */
@@ -262,8 +281,13 @@ function registerIpc(
   const languageView = () => ({ language: lang.language, messages: lang.messages, languages: languagesIn(contentRoot(), t('core.language.en')) })
   ipcMain.handle(IPC.getLanguage, () => languageView())
   ipcMain.handle(IPC.setLanguage, (_event, raw: unknown) => {
-    lang = useLanguage(z.string().parse(raw))
-    settings.setLanguage(lang.language)
+    if (!allowedConnectionSender(_event)) throw new ConnectionStoreError('forbidden')
+    const next = useLanguage(z.string().parse(raw))
+    try { settings.updatePreferences({ language: next.language }) } catch (error) {
+      setLanguage(lang.language, lang.messages)
+      throw error
+    }
+    lang = next
     reload()
     return { ...languageView(), content }
   })
@@ -317,11 +341,12 @@ function registerIpc(
   )
   /** A new character written by the Main LLM, from an idea or from a card. Never throws: what went wrong comes back as the reason. */
   async function draftCharacter(idea: string, card?: Card): Promise<{ loveInterest?: LoveInterest; error?: string }> {
-    const profile = settings.get().main
-    if (!isConfigured(profile)) return { error: notConfigured() }
+    const snapshot = settings.snapshot()
+    if (!isConfigured(snapshot.main.parameters)) return { error: notConfigured() }
     try {
+      const profile = snapshot.main.resolve()
       const { system, user } = buildDraftPrompt(content, idea, card)
-      const reply = await chatCompletion(profile, {
+      const reply = await chatCompletion(profile, { languageInstruction: snapshot.languageInstruction,
         system,
         messages: [{ role: 'user', content: user }],
         maxTokens: Math.max(profile.maxTokens, DRAFT_MIN_TOKENS),
@@ -373,11 +398,12 @@ function registerIpc(
   ipcMain.handle(IPC.editorDraftMajor, async (_event, raw: unknown): Promise<{ major?: Major; error?: string }> => {
     const idea = z.object({ subject: z.string().trim().min(1), college: z.string(), notes: z.string().max(DRAFT_MAX_IDEA_CHARS).default('') }).safeParse(raw)
     if (!idea.success) return { error: t('llm.main.nameSubject') }
-    const profile = settings.get().main
-    if (!isConfigured(profile)) return { error: notConfigured() }
+    const snapshot = settings.snapshot()
+    if (!isConfigured(snapshot.main.parameters)) return { error: notConfigured() }
     try {
+      const profile = snapshot.main.resolve()
       const { system, user } = buildMajorDraftPrompt(content, idea.data)
-      const reply = await chatCompletion(profile, {
+      const reply = await chatCompletion(profile, { languageInstruction: snapshot.languageInstruction,
         system,
         messages: [{ role: 'user', content: user }],
         maxTokens: Math.max(profile.maxTokens, MAJOR_DRAFT_MIN_TOKENS),
@@ -623,39 +649,8 @@ function registerIpc(
 
   ipcMain.handle(IPC.deleteSave, (_event, raw: unknown) => saves.delete(SlotIdSchema.parse(raw)))
 
-  ipcMain.handle(IPC.getSettings, () => toView(settings.get()))
-
-  ipcMain.handle(IPC.saveSettings, (_event, raw: unknown) =>
-    toView(settings.update(SettingsUpdateSchema.parse(raw)))
-  )
-
-  ipcMain.handle(IPC.listModels, async (_event, raw: unknown): Promise<ListModelsResponse> => {
-    const { profileId, baseUrl, apiKey } = ListModelsRequestSchema.parse(raw)
-    try {
-      // A key the user hasn't retyped stays in the main process; fall back to the saved one.
-      const key = apiKey ?? settings.get()[profileId].apiKey
-      return { models: await listModels({ baseUrl, apiKey: key }) }
-    } catch (error) {
-      return { models: [], error: (error as Error).message }
-    }
-  })
-
-  ipcMain.handle(
-    IPC.testConnection,
-    async (_event, raw: unknown): Promise<TestConnectionResponse> => {
-      const profile = settings.get()[z.enum(LLM_PROFILE_IDS).parse(raw)]
-      if (!isConfigured(profile)) return { ok: false, message: t('llm.main.urlAndModel') }
-      try {
-        const reply = await chatCompletion(profile, {
-          system: t('llm.main.testSystem'),
-          messages: [{ role: 'user', content: t('llm.main.testUser') }]
-        })
-        return { ok: true, message: t('llm.main.connected', { reply: reply.slice(0, 80) }) }
-      } catch (error) {
-        return { ok: false, message: (error as Error).message }
-      }
-    }
-  )
+  registerConnectionIpc(ipcMain, settings, allowedConnectionSender)
+  registerConnectionDiagnostics(ipcMain, settings, allowedConnectionSender)
 
   // The scene reply being written, so that the player can stop it. There is only ever one: he waits for each before saying more.
   let sceneReply: AbortController | undefined
@@ -663,6 +658,7 @@ function registerIpc(
 
   ipcMain.handle(IPC.chat, async (event, raw: unknown): Promise<ChatResponse> => {
     const { state, scene } = SceneRequestSchema.parse(raw)
+    const snapshot = settings.snapshot()
     const stop = (sceneReply = new AbortController())
     // Said to the window the moment a move is called for, while the leaving and arriving are still to be written: it has something to show meanwhile.
     const moving = (where: string) => !event.sender.isDestroyed() && event.sender.send(IPC.chatMoving, where)
@@ -684,7 +680,7 @@ function registerIpc(
       roomOf: scene.roomOf,
       departed: scene.departed,
       hoursSoFar: sceneHours(state, scene),
-      memoryRecall: settings.get().memoryRecall,
+      memoryRecall: snapshot.memoryRecall,
       windDown: windingDown(scene) ? exchanges(scene) : undefined,
       loveInterestId: scene.loveInterestId,
       companionIds: scene.companionIds,
@@ -742,7 +738,7 @@ function registerIpc(
         [clockNote(content, state), firstSpeakerId && t('scene.prompt.firstSpeaker', { name: firstNames(cast, [firstSpeakerId]) })].filter(Boolean).join(' ')
       ),
       // The lecture a class opens with is several times the length of an ordinary reply.
-      ...(scene.lesson && scene.messages.length === 0 ? { maxTokens: Math.max(settings.get().main.maxTokens, LESSON_MIN_TOKENS) } : {}),
+      ...(scene.lesson && scene.messages.length === 0 ? { maxTokens: Math.max(snapshot.main.parameters.maxTokens, LESSON_MIN_TOKENS) } : {}),
       // An NPC makes no plans and no promises with the player.
       tools: [
         ...(npc
@@ -754,7 +750,7 @@ function registerIpc(
         ...(move ? [move] : [])
       ]
     }
-    let { reply, profileId } = await completeWithFallback(settings.get(), scene.nsfw, asked)
+    let { reply, profileId, profileRole } = await completeWithFallback(snapshot, scene.nsfw, asked)
     // Those here who will not go to bed with him: a reply that has one of them doing so anyway is written again, once,
     // told who, and what its tools did is undone first. The second is kept, whatever it says.
     const shut = npc ? [] : sceneCast(scene).filter((id) => {
@@ -772,7 +768,7 @@ function registerIpc(
       left = undefined
       walkTo = undefined
       const names = firstNames(cast, broke)
-      ;({ reply, profileId } = await completeWithFallback(settings.get(), scene.nsfw, {
+      ;({ reply, profileId, profileRole } = await completeWithFallback(snapshot, scene.nsfw, {
         ...asked,
         system: `${systemPrompt}\n\n${t('llm.main.gateBroken', { names, player: state.player.name, count: broke.length })}`
       }))
@@ -874,6 +870,7 @@ function registerIpc(
       message: { role: 'assistant', content: text || '...', tags: lookLines(reply) || undefined },
       systemPrompt,
       profileId,
+      profileRole,
       // Setting off together for his class, and going to sleep for the night, both close the scene.
       sceneEnded: ended || walkTo !== undefined || sleptOver,
       walkTo,
@@ -914,13 +911,14 @@ function registerIpc(
 
   ipcMain.handle(IPC.generateEvents, async (_event, raw: unknown) => {
     const { state } = GenerateEventsRequestSchema.parse(raw)
+    const snapshot = settings.snapshot()
     // The content as this game reads it, with the player's name where the content wrote the token.
     const content = readBy(state)
-    const profile = settings.get().main
+    const profile = snapshot.main.resolve()
     if (!isConfigured(profile)) throw new Error(notConfigured())
 
     const { system, user } = buildEventPrompt({ content, state })
-    const reply = await chatCompletion(profile, {
+    const reply = await chatCompletion(profile, { languageInstruction: snapshot.languageInstruction,
       system,
       messages: [{ role: 'user', content: user }],
       maxTokens: Math.max(profile.maxTokens, EVENT_MIN_TOKENS)
@@ -930,6 +928,7 @@ function registerIpc(
 
   ipcMain.handle(IPC.courier, async (_event, raw: unknown): Promise<CourierResponse> => {
     const { state, loveInterestId, invite, note, news } = CourierRequestSchema.parse(raw)
+    const snapshot = settings.snapshot()
     // The content as this game reads it, with the player's name where the content wrote the token.
     const content = readBy(state)
     const unprompted = invite || note || news !== undefined
@@ -949,7 +948,7 @@ function registerIpc(
         loveInterestId,
         mode: news !== undefined ? 'news' : invite ? 'invite' : note ? 'note' : 'courier',
         news,
-        memoryRecall: settings.get().memoryRecall,
+        memoryRecall: snapshot.memoryRecall,
         recentText: thread
           .slice(-CODEX_SCAN_MESSAGES)
           .map((note) => note.text)
@@ -961,7 +960,7 @@ function registerIpc(
       const cue = unprompted
         ? t('llm.main.cueUnprompted', { open: DM_OPEN, close: DM_CLOSE })
         : t('llm.main.cueReply', { player: state.player.name, hasSaid: Boolean(said), said, open: DM_OPEN, close: DM_CLOSE })
-      const { reply } = await completeWithFallback(settings.get(), false, {
+      const { reply } = await completeWithFallback(snapshot, false, {
         system,
         messages: [{ role: 'user', content: cue }],
         tools: [...(npc ? [] : [meetingTool(content, state, loveInterestId, (p) => (proposal = p)), ...(reveal ? [reveal] : [])]), ...(excuse ? [excuse] : [])]
@@ -989,16 +988,17 @@ function registerIpc(
   // Never fails: writes the captions of the day's planned posts, and the prompt each selfie is drawn from.
   ipcMain.handle(IPC.feed, async (_event, raw: unknown): Promise<FeedResponse> => {
     const { state, plans } = FeedRequestSchema.parse(raw)
+    const snapshot = settings.snapshot()
     // The content as this game reads it, with the player's name where the content wrote the token.
     const content = readBy(state)
     const planned = plans.filter((plan) => content.loveInterests.some((li) => li.id === plan.authorId))
-    const profile = settings.get().main
-    if (!isConfigured(profile)) return { drafts: [], error: notConfigured() }
+    if (!isConfigured(snapshot.main.parameters)) return { drafts: [], error: notConfigured() }
     if (!comfyReady()) return { drafts: [], error: t('llm.main.comfyNotSet') }
     if (planned.length === 0) return { drafts: [] }
     try {
+      const profile = snapshot.main.resolve()
       const { system, user } = buildFeedPrompt(content, state, planned)
-      const reply = await chatCompletion(profile, { system, messages: [{ role: 'user', content: user }], maxTokens: Math.max(profile.maxTokens, feedReplyTokens(planned)) })
+      const reply = await chatCompletion(profile, { languageInstruction: snapshot.languageInstruction, system, messages: [{ role: 'user', content: user }], maxTokens: Math.max(profile.maxTokens, feedReplyTokens(planned)) })
       const written = parseFeedReply(reply, planned)
       return { drafts: draftPosts(content, state, planned, written, framingFor(comfy.get(), 'photo')), shortfall: feedShortfall(content, reply, planned, written) }
     } catch (error) {
@@ -1019,13 +1019,13 @@ function registerIpc(
   ipcMain.handle(IPC.news, async (_event, raw: unknown): Promise<NewsResponse> => {
     const { state, plan } = NewsRequestSchema.parse(raw)
     const content = readBy(state)
-    const all = settings.get()
-    if (!isConfigured(all.main)) return { error: notConfigured() }
+    const all = settings.snapshot()
+    if (!isConfigured(all.main.parameters)) return { error: notConfigured() }
     const write = async (search: boolean): Promise<NewsResponse> => {
       const { system, user } = buildNewsPrompt(content, state, plan, search ? { date: new Date().toISOString().slice(0, 10) } : undefined)
-      const input = { system, messages: [{ role: 'user' as const, content: user }] }
+      const input = { system, languageInstruction: all.languageInstruction, messages: [{ role: 'user' as const, content: user }] }
       const reply = search
-        ? await chatCompletion({ ...all.main, model: all.main.model.endsWith(':online') ? all.main.model : `${all.main.model}:online` }, input)
+        ? await chatCompletion({ ...all.main.resolve(), model: all.main.parameters.model.endsWith(':online') ? all.main.parameters.model : `${all.main.parameters.model}:online` }, input)
         : (await completeWithFallback(all, false, input)).reply
       const written = parseNewsReply(reply)
       if (!written) throw new Error(t('llm.news.unreadable'))
@@ -1048,13 +1048,14 @@ function registerIpc(
   // Never fails: what happened between two of them, in the LLM's words. The game has already gone on in its own.
   ipcMain.handle(IPC.happening, async (_event, raw: unknown): Promise<HappeningResponse> => {
     const { state, happeningId } = HappeningRequestSchema.parse(raw)
+    const snapshot = settings.snapshot()
     const content = readBy(state)
     const happening = state.happenings.find((one) => one.id === happeningId)
     if (!happening) return { error: `Unknown happening "${happeningId}"` }
-    if (!isConfigured(settings.get().main)) return { error: notConfigured() }
+    if (!isConfigured(snapshot.main.parameters)) return { error: notConfigured() }
     try {
       const { system, user } = buildHappeningPrompt(content, state, happening)
-      const { reply } = await completeWithFallback(settings.get(), false, { system, messages: [{ role: 'user', content: user }], temperature: SUMMARY_TEMPERATURE })
+      const { reply } = await completeWithFallback(snapshot, false, { system, messages: [{ role: 'user', content: user }], temperature: SUMMARY_TEMPERATURE })
       const written = parseHappeningReply(reply, happening)
       return written ? { written } : { error: t('llm.social.unreadable') }
     } catch (error) {
@@ -1072,13 +1073,14 @@ function registerIpc(
   // Never fails: a picture the player takes in a scene, its caption written from the scene and the picture drawn of whoever is in it with him.
   ipcMain.handle(IPC.scenePhoto, async (_event, raw: unknown): Promise<ScenePhotoResponse> => {
     const { state, scene } = SceneRequestSchema.parse(raw)
+    const snapshot = settings.snapshot()
     const content = readBy(state)
-    if (!isConfigured(settings.get().main)) return { error: notConfigured() }
+    if (!isConfigured(snapshot.main.parameters)) return { error: notConfigured() }
     if (!comfyReady()) return { error: t('llm.scenePhoto.noComfy') }
     try {
       const { system, user } = buildScenePhotoPrompt(content, state, scene)
       // Written by whichever LLM writes the scene: one the Main LLM would not go over is the NSFW one's.
-      const { reply } = await completeWithFallback(settings.get(), scene.nsfw, { system, messages: [{ role: 'user', content: user }] })
+      const { reply } = await completeWithFallback(snapshot, scene.nsfw, { system, messages: [{ role: 'user', content: user }] })
       const written = parseScenePhoto(content, scene, reply)
       if (!written) return { error: t('llm.scenePhoto.unread') }
       const date = toDate(content.calendar, state.time)
@@ -1094,17 +1096,18 @@ function registerIpc(
   // Never fails: a selfie he asked her for in his DMs, of her as she is and where she is right now.
   ipcMain.handle(IPC.selfie, async (_event, raw: unknown): Promise<SelfieResponse> => {
     const { state, loveInterestId, request } = SelfieRequestSchema.parse(raw)
+    const snapshot = settings.snapshot()
     const content = readBy(state)
     const li = content.loveInterests.find((c) => c.id === loveInterestId)
     if (!li) return { error: t('llm.selfie.unread') }
-    if (!isConfigured(settings.get().main)) return { error: notConfigured() }
+    if (!isConfigured(snapshot.main.parameters)) return { error: notConfigured() }
     if (!comfyReady()) return { error: t('llm.scenePhoto.noComfy') }
     try {
       // What she is asked is the game's, unless the player wrote his own in its place.
       const { system, user: built } = buildSelfiePrompt(content, state, li)
       const user = request?.trim() || built
       // The Main LLM first, and the NSFW one if it will not write it.
-      const { reply } = await completeWithFallback(settings.get(), false, { system, messages: [{ role: 'user', content: user }] })
+      const { reply } = await completeWithFallback(snapshot, false, { system, messages: [{ role: 'user', content: user }] })
       const written = parseSelfie(reply)
       if (!written) return { error: t('llm.selfie.unread') }
       const date = toDate(content.calendar, state.time)
@@ -1120,11 +1123,12 @@ function registerIpc(
   // Never fails: without an LLM the plan is read off the names and places in the player's words.
   ipcMain.handle(IPC.planOuting, async (_event, raw: unknown): Promise<PlanOutingResponse> => {
     const { state, text } = PlanOutingRequestSchema.parse(raw)
+    const snapshot = settings.snapshot()
     // The content as this game reads it, with the player's name where the content wrote the token.
     const content = readBy(state)
     try {
       const { system, user } = buildOutingPrompt(content, state, text)
-      const { reply } = await completeWithFallback(settings.get(), false, {
+      const { reply } = await completeWithFallback(snapshot, false, {
         system,
         messages: [{ role: 'user', content: user }],
         temperature: SUMMARY_TEMPERATURE
@@ -1139,11 +1143,12 @@ function registerIpc(
   // Never fails: a fight below begins whether or not anyone has anything to say about it.
   ipcMain.handle(IPC.banter, async (_event, raw: unknown): Promise<BanterResponse> => {
     const { state, moment } = BanterRequestSchema.parse(raw)
+    const snapshot = settings.snapshot()
     const content = readBy(state)
     if (!banterDue(content, state, moment)) return { lines: [] }
     try {
       const { system, user } = buildBanterPrompt(content, state, moment)
-      const { reply } = await completeWithFallback(settings.get(), false, { system, messages: [{ role: 'user', content: user }] })
+      const { reply } = await completeWithFallback(snapshot, false, { system, messages: [{ role: 'user', content: user }] })
       return { lines: parseBanter(reply, content, state) }
     } catch {
       return { lines: [] }
@@ -1153,10 +1158,11 @@ function registerIpc(
   // Never fails: the moment plays whether or not anyone has anything to say.
   ipcMain.handle(IPC.momentLines, async (_event, raw: unknown): Promise<BanterResponse> => {
     const { state, ids, moment, history, tripId } = MomentLinesRequestSchema.parse(raw)
+    const snapshot = settings.snapshot()
     const content = readBy(state)
     try {
       const { system, user } = buildMomentPrompt(content, state, ids, moment, history, tripId)
-      const { reply } = await completeWithFallback(settings.get(), false, { system, messages: [{ role: 'user', content: user }] })
+      const { reply } = await completeWithFallback(snapshot, false, { system, messages: [{ role: 'user', content: user }] })
       return { lines: parseMomentLines(reply, content, ids) }
     } catch {
       return { lines: [] }
@@ -1166,15 +1172,17 @@ function registerIpc(
   // Fails when the LLM cannot be reached or chooses nothing he can take: there is no guessing a term's courses from his words alone.
   ipcMain.handle(IPC.pickCourses, async (_event, raw: unknown): Promise<CoursePick> => {
     const { state, text } = PickCoursesRequestSchema.parse(raw)
+    const snapshot = settings.snapshot()
     const content = readBy(state)
     const { system, user } = buildCoursePickPrompt(content, state, text)
-    const { reply } = await completeWithFallback(settings.get(), false, { system, messages: [{ role: 'user', content: user }], temperature: SUMMARY_TEMPERATURE })
+    const { reply } = await completeWithFallback(snapshot, false, { system, messages: [{ role: 'user', content: user }], temperature: SUMMARY_TEMPERATURE })
     return parseCoursePick(reply, content, state)
   })
 
   // Never fails: a scene that can't be summarised by the LLM still leaves a plain memory.
   ipcMain.handle(IPC.summarize, async (_event, raw: unknown): Promise<SummarizeResponse> => {
     const request = SceneRequestSchema.parse(raw)
+    const snapshot = settings.snapshot()
     // The content as this game reads it, with the player's name where the content wrote the token.
     const content = readBy(request.state)
     let failure: string | undefined
@@ -1185,7 +1193,7 @@ function registerIpc(
       try {
         const { system, user } = buildSpendingPrompt(content, request.state, request.scene)
         // Once the scene is over the Main LLM is asked again, whichever wrote the scene: the NSFW one only if it declines.
-        const { reply } = await completeWithFallback(settings.get(), false, { system, messages: [{ role: 'user', content: user }], temperature: SUMMARY_TEMPERATURE })
+        const { reply } = await completeWithFallback(snapshot, false, { system, messages: [{ role: 'user', content: user }], temperature: SUMMARY_TEMPERATURE })
         return parseSpending(reply, request.state.player.money)
       } catch {
         return undefined
@@ -1198,7 +1206,7 @@ function registerIpc(
         try {
           const { system, user } = buildSummaryPrompt(input)
           // The same for the memories: the Main LLM first, and the NSFW one for a scene it will not go over.
-          const { reply } = await completeWithFallback(settings.get(), false, {
+          const { reply } = await completeWithFallback(snapshot, false, {
             system,
             messages: [{ role: 'user', content: user }],
             temperature: SUMMARY_TEMPERATURE
@@ -1236,13 +1244,18 @@ app.whenReady().then(() => {
   // field that leaves the browser's own checking off would never wake it.
   session.defaultSession.setSpellCheckerEnabled(true)
   const addonDir = join(app.getPath('userData'), 'addons')
-  const settings = new SettingsStore(join(app.getPath('userData'), 'settings.json'), keyCipher())
-  const inLanguage = useLanguage(settings.get().language)
+  let settings: ConnectionStore
+  try { settings = new ConnectionStore(join(app.getPath('userData'), 'settings.json'), { cipher: keyCipher() }) } catch (error) {
+    const safe = error instanceof ConnectionStoreError ? error : new ConnectionStoreError('internal-error')
+    dialog.showErrorBox(t('llm.connections.loadFailed'), safe.message)
+    app.quit()
+    return
+  }
+  const inLanguage = useLanguage(settings.getView().language)
   let loaded: { content: ContentPack; info: EditorInfo }
   try {
-    // Run from its source, the game is being written: the editor changes the base game itself, and add-ons are left out of it.
-    // (BREEDHAVEN_ADDONS=1 runs it as a player has it, add-ons and all.) A packaged game keeps what the user makes apart, as add-ons.
-    const authoring = !app.isPackaged && process.env['BREEDHAVEN_ADDONS'] !== '1'
+    // A normal source run edits the base game. Isolated runs, BREEDHAVEN_ADDONS=1, and packaged games keep edits in add-ons.
+    const authoring = !isolatedUserData && !app.isPackaged && process.env['BREEDHAVEN_ADDONS'] !== '1'
     const { languageDir } = inLanguage
     loaded = authoring ? loadBase(contentDir(), languageDir) : loadWithAddons(contentDir(), addonDir, languageDir)
     // A player's own characters keep their classes across an update of the game: a term laid out before it is laid out again.

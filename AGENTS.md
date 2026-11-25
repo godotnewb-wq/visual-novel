@@ -48,7 +48,7 @@ scripts/                One-off and maintenance scripts
 
 ## Rules for this project
 
-- **No backwards compatibility.** The game is not public. Never write shims, migrations or fallbacks for old saves, old content or add-ons. Change the format and the content together.
+- **Preserve existing user data.** Preserve existing settings, saves, and add-ons. Migrations are allowed when an approved feature requires a format change, including migrating the existing LLM settings for F-001. Preserve user-authored values and credentials, and report what existing data the change touches. This policy does not authorize feature implementation by itself.
 - **Do not commit unless asked.** The working tree always has unrelated uncommitted content changes; leave them alone.
 - **Content never spells the player's name.** Write `{player}`; `personalise.test.ts` enforces it.
 - **Written content is US English** (codex, syllabus, character files, UI text).

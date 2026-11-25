@@ -2,8 +2,11 @@ import type { ChatMessage } from '../../shared/model'
 import type { LlmProfile, ReasoningStyle } from '../../shared/settings'
 import { t } from '../../shared/i18n'
 import { inTurn } from './queue'
+import { redactConnectionDetail } from './redact'
 
 export interface CompletionInput {
+  /** Captured with the connection settings so retries retain the requested language. */
+  languageInstruction?: string
   system: string
   messages: ChatMessage[]
   /** Overrides the profile's temperature for this call. */
@@ -39,6 +42,11 @@ export async function listModels(
   connection: Pick<LlmProfile, 'baseUrl' | 'apiKey'>,
   fetchImpl: typeof fetch = fetch
 ): Promise<string[]> {
+  const captured = { ...connection }
+  try { return await requestModels(captured, fetchImpl) } catch (error) { throw safeError(error, captured) }
+}
+
+async function requestModels(connection: Pick<LlmProfile, 'baseUrl' | 'apiKey'>, fetchImpl: typeof fetch): Promise<string[]> {
   const url = `${connection.baseUrl.trim().replace(/\/+$/, '')}/models`
   let response: Response
   try {
@@ -136,9 +144,24 @@ export async function chatCompletion(
   input: CompletionInput,
   fetchImpl: typeof fetch = fetch
 ): Promise<string> {
+  const captured = { ...profile }
+  try { return await requestCompletion(captured, input, fetchImpl) } catch (error) {
+    if (input.signal?.aborted) throw input.signal.reason
+    throw safeError(error, captured)
+  }
+}
+
+function safeError(error: unknown, connection: Pick<LlmProfile, 'baseUrl' | 'apiKey'>): Error {
+  const message = redactConnectionDetail(error instanceof Error ? error.message : String(error), connection)
+  const safe = error instanceof RefusalError ? new RefusalError('') : new Error()
+  safe.message = message
+  return safe
+}
+
+async function requestCompletion(profile: LlmProfile, input: CompletionInput, fetchImpl: typeof fetch): Promise<string> {
   const url = `${profile.baseUrl.trim().replace(/\/+$/, '')}/chat/completions`
   // In a language other than English, the last thing said is which one to write in. English needs no saying.
-  const system = [input.system, t('core.llm.writeIn'), profile.instructions].filter((s) => s.length > 0).join('\n\n')
+  const system = [input.system, input.languageInstruction ?? t('core.llm.writeIn'), profile.instructions].filter((s) => s.length > 0).join('\n\n')
   // Grows as tools are called: the model's requests and their results are appended.
   const messages: unknown[] = [{ role: 'system', content: system }, ...input.messages]
   let tools = input.tools && input.tools.length > 0 ? input.tools : undefined

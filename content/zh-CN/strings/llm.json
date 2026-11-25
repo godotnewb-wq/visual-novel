@@ -145,5 +145,22 @@
   "saves.empty": "{slot}为空",
   "saves.unreadable": "无法读取{slot}，可能已损坏或来自其他游戏版本。",
   "banter.systemEnglish": "用简体中文写作。",
-  "momentLines.english": "用简体中文写作。"
+  "momentLines.english": "用简体中文写作。",
+  "connections.invalidRequest": "连接设置无效。",
+  "connections.invalidSettings": "连接设置无效，原始文件已保留。",
+  "connections.readFailed": "无法读取连接设置。",
+  "connections.writeFailed": "无法保存连接设置，之前的设置已保留。",
+  "connections.backupFailed": "无法备份连接设置，迁移已停止。",
+  "connections.settingsChanged": "磁盘上的连接设置已更改，请重新加载后再试。",
+  "connections.profileNotFound": "此连接配置已不存在。",
+  "connections.profileAssigned": "删除此配置前，请先重新分配其角色。",
+  "connections.encryptionUnavailable": "安全存储不可用，无法保存 API 密钥。",
+  "connections.credentialUnavailable": "无法解锁已保存的 API 密钥，请重新输入或清除。",
+  "connections.forbidden": "此窗口无法管理连接设置。",
+  "connections.internalError": "无法更新连接设置。",
+  "connections.endpointKeyRequired": "请为新的接口地址重新输入或清除 API 密钥。",
+  "connections.discoveryFailed": "无法从此连接加载模型。",
+  "connections.testSucceeded": "连接成功。",
+  "connections.testFailed": "连接测试失败，请检查接口地址、模型和密钥。",
+  "connections.loadFailed": "无法加载连接设置"
 }

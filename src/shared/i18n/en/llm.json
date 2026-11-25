@@ -476,5 +476,22 @@
   "social.standing": "{name} and {player}: {stage}{bond, select, true {, {status}} other {}}{intimate, select, true {; she has been to bed with him} other {}}.",
   "social.happened": "What happened today: {account}",
   "social.tell": "{part, select, true {{hearer, select, true {Something was said to you about {player} that you need to have out with him} other {Something has happened between you and another woman that you want him to know}}} other {Something has happened between two women you know, and you want him to hear it from you}}: {account} Tell him in your own words and your own feeling of it; name whoever is in it.",
-  "social.invite": "You and {other} are lovers, and both of you want {player}. You have agreed to ask him to join the two of you for a night at {where}; the plan is already in his calendar, and he need only say yes. Ask him, in your own words, plainly enough that he knows the two of you mean to take him to bed together."
+  "social.invite": "You and {other} are lovers, and both of you want {player}. You have agreed to ask him to join the two of you for a night at {where}; the plan is already in his calendar, and he need only say yes. Ask him, in your own words, plainly enough that he knows the two of you mean to take him to bed together.",
+  "connections.invalidRequest": "Invalid connection settings.",
+  "connections.invalidSettings": "Connection settings are invalid. The original file was kept.",
+  "connections.readFailed": "Could not read connection settings.",
+  "connections.writeFailed": "Could not save connection settings. Your previous settings were kept.",
+  "connections.backupFailed": "Could not back up connection settings. Migration was stopped.",
+  "connections.settingsChanged": "Connection settings changed on disk. Reload before trying again.",
+  "connections.profileNotFound": "This connection profile no longer exists.",
+  "connections.profileAssigned": "Reassign this profile before deleting it.",
+  "connections.encryptionUnavailable": "Secure storage is unavailable. API keys cannot be saved.",
+  "connections.credentialUnavailable": "This saved API key could not be unlocked. Re-enter or clear it.",
+  "connections.forbidden": "This window cannot manage connection settings.",
+  "connections.internalError": "Could not update connection settings.",
+  "connections.endpointKeyRequired": "Re-enter or clear the API key for the new endpoint.",
+  "connections.discoveryFailed": "Could not load models from this connection.",
+  "connections.testSucceeded": "Connected.",
+  "connections.testFailed": "The connection test failed. Check the endpoint, model, and key.",
+  "connections.loadFailed": "Could not load connection settings"
 }

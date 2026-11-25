@@ -61,7 +61,7 @@ scripts/                One-off and maintenance scripts
 
 ## Rules for this project
 
-- **Old data keeps loading.** The game is publicly released: players' saves and add-ons (custom characters, edited ones) come from older versions. When a change would stop old data loading, bring it up to date as it is loaded rather than leaving the player to fix it, and say in the summary what old data the change touches.
+- **Preserve existing user data.** Preserve existing settings, saves, and add-ons. Migrations are allowed when an approved feature requires a format change, including migrating the existing LLM settings for F-001. Preserve user-authored values and credentials, and report what existing data the change touches. This policy does not authorize feature implementation by itself.
 - **Do not commit unless asked.** The working tree always has unrelated uncommitted content changes; leave them alone.
 - **Content never spells the player's name.** Write `{player}`; `personalise.test.ts` enforces it.
 - **Written content is US English** (codex, syllabus, character files, UI text).
