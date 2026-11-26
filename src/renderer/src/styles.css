@@ -427,6 +427,7 @@ input:disabled {
   gap: 12px;
 }
 
+.connection-library-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
 .connection-assignments {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

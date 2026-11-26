@@ -12,6 +12,7 @@ node_modules/
 /achievements.json
 /Local State
 settings.json.pre-v2-*.bak
+settings.json.pre-v3-*.bak
 out/
 dist/
 *.log

@@ -14,3 +14,9 @@ export interface ConnectionSnapshot {
   readonly newsWebSearch: boolean
   readonly languageInstruction: string
 }
+
+export interface GenerationSnapshot extends ConnectionSnapshot {
+  readonly generationMode: 'legacy' | 'dual'
+  readonly writer: CapturedConnection | null
+  readonly manager: CapturedConnection | null
+}

@@ -3,6 +3,11 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { dirname, extname, join, resolve, sep } from 'node:path'
 import { z } from 'zod'
 import { chatCompletion } from './ai/openai'
+import { createHash } from 'node:crypto'
+import { registerDualTurnIpc } from './ai/dualTurnIpc'
+import { registerGenerationIpc } from './settings/generationIpc'
+import { dualSceneSources } from '../shared/game/dualSources'
+import { managerNoteTargets } from '../shared/game/encounterNotes'
 import { registerConnectionDiagnostics } from './ai/connectionDiagnostics'
 import { ConnectionStore } from './settings/connectionStore'
 import { ConnectionStoreError } from './settings/connectionErrors'
@@ -650,7 +655,26 @@ function registerIpc(
   ipcMain.handle(IPC.deleteSave, (_event, raw: unknown) => saves.delete(SlotIdSchema.parse(raw)))
 
   registerConnectionIpc(ipcMain, settings, allowedConnectionSender)
+  registerGenerationIpc(ipcMain, settings, allowedConnectionSender)
   registerConnectionDiagnostics(ipcMain, settings, allowedConnectionSender)
+  registerDualTurnIpc(ipcMain, {
+    allowed: allowedConnectionSender,
+    contentRevision: () => createHash('sha256').update(JSON.stringify([lang.language, content])).digest('hex'),
+    connections: () => { try { return settings.generationSnapshot() } catch { return null } },
+    prepare: (request) => {
+      const { state, scene, turnId } = request, prepared = readBy(state)
+      const npc = scene.npc ? npcOf(prepared, scene.loveInterestId) : undefined
+      const cast = npc ? withNpc(prepared, npc.id) : inMasks(prepared, scene, false)
+      const context = { turnId, content: cast, state, scene, informationTargets: managerNoteTargets(cast, scene),
+        subjectIds: sceneWitnesses(scene).filter((id) => [...cast.loveInterests, ...cast.npcs].some((person) => person.id === id)) }
+      return { context: { ...context, sources: dualSceneSources(context) }, hints: {
+        npc: npc && { role: npc.role, knowledge: npc.ai.knowledge }, extras: sceneExtras(prepared, state, scene),
+        hoursSoFar: sceneHours(state, scene), memoryRecall: settings.getView().memoryRecall,
+        windDown: windingDown(scene) ? exchanges(scene) : undefined, relics: sceneRelicUses(prepared, scene),
+        firstSpeakerId: npc || scene.lesson ? undefined : firstToSpeak(cast, scene),
+        recentText: scene.messages.map((message) => message.content).join('\n') } }
+    }
+  })
 
   // The scene reply being written, so that the player can stop it. There is only ever one: he waits for each before saying more.
   let sceneReply: AbortController | undefined
@@ -1245,7 +1269,7 @@ app.whenReady().then(() => {
   session.defaultSession.setSpellCheckerEnabled(true)
   const addonDir = join(app.getPath('userData'), 'addons')
   let settings: ConnectionStore
-  try { settings = new ConnectionStore(join(app.getPath('userData'), 'settings.json'), { cipher: keyCipher() }) } catch (error) {
+  try { settings = new ConnectionStore(join(app.getPath('userData'), 'settings.json'), { cipher: keyCipher(), generation: true }) } catch (error) {
     const safe = error instanceof ConnectionStoreError ? error : new ConnectionStoreError('internal-error')
     dialog.showErrorBox(t('llm.connections.loadFailed'), safe.message)
     app.quit()

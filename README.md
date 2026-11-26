@@ -77,8 +77,9 @@ for a source run; it must be separate from the live user-data directory, includi
 The override also selects player add-on mode and is ignored by packaged builds. Standalone save and media scripts
 do not use this override; they retain their existing paths.
 
-Connection settings use version 2. The first launch converts older LLM settings and preserves the original in a
-unique `settings.json.pre-v2-*.bak` beside the settings file. Keep full user-data backups, including `Local State`,
+Connection settings use version 3. The first launch converts older LLM settings and preserves the original in a
+unique `settings.json.pre-v3-*.bak` beside the settings file. Existing connections, values, and credentials are retained;
+generation starts in Legacy with Writer and Manager unassigned. Keep full user-data backups, including `Local State`,
 for encrypted-key recovery. Use `npm run dev:isolated` for feature testing with data separate from older builds.
 Keep private data and detailed verification inventories in the ignored local area. Before committing, review
 [commit privacy](docs/PRIVACY.md), including your Git author identity.
@@ -86,9 +87,17 @@ Keep private data and detailed verification inventories in the ignored local are
 Connections can be renamed, duplicated without keys, and deleted after reassignment. Profile edits and global
 preferences have separate Save/Cancel controls. Role selections persist immediately; they are disabled during scene
 generation. Switching the profile being edited does not change the role assignments.
-During play, open **Menu** (Esc) to switch **Main LLM** directly. The choice saves on success and applies to later
-requests without resetting the scene. Scene/photo generation and pending assignment writes disable this selector;
-NSFW routing still uses its assigned connection.
+In **Settings → LLMs**, assign configured connections to **Writer LLM** and **Manager LLM**, then select **Dual-call**
+under **Generation mode**. Connection names are yours to choose; the two roles may share a connection. The mode
+applies to new scenes. A saved scene keeps its mode; older scenes resume in Legacy.
+
+During play, open **Menu** (Esc) to switch **Main LLM** in a Legacy scene or **Writer LLM** in a Dual-call scene.
+Assignments save immediately and apply to the next request without resetting the scene. Scene/photo generation
+and pending writes disable the selector. NSFW retains its scene-writing and refusal-fallback role; Manager uses
+its own assigned connection. Dual-call publishes a reply after both calls validate; a failed Manager can be retried
+with the same unpublished reply. Validated encounter notes survive saving and undo and support existing summaries.
+See [P2.5 implementation](docs/F002_P25_TRACKING_REPORT.md) and [P2.6 acceptance](docs/F002_ACCEPTANCE_REPORT.md)
+for the local/mock and isolated packaged checks. Real-provider quality/performance and final owner acceptance remain open.
 
 ### Previews
 

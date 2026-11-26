@@ -88,10 +88,7 @@ import {
   dressForHome,
   keepDayOutfits,
   MAX_TURNS_KEPT,
-  packTurns,
   rewound,
-  unpackTurns,
-  type Turn,
   applySpending,
   playerGains,
   finishDrill,
@@ -218,6 +215,11 @@ import {
 import { MAX_SCENE_CAST, type Activity, type ContentPack, type EventPart, type ExamKind, type GameState, type Intro, type NewsSource, type PostPlan, type Proposal, type Relic, type RelicUse, type Scene, type Travel } from '../../shared/model'
 import { CHAT_CANCELLED } from '../../shared/ipc'
 import { AUTO_SLOT_ID, type SaveData } from '../../shared/saves'
+import { useGameSession } from './useGameSession'
+import { dialogueScene, prepareDualCheckpoint, saveGameSession } from '../../shared/game/dualSession'
+import { withBackground } from '../../shared/game/turns'
+import { GENERATION_CHANGED, generationSettings } from './generationSettings'
+import type { DualBeginRequest, DualBridgeResult } from '../../shared/dualTurnBridge'
 import { errorMessage } from './errors'
 import { lineFile, play, playSong, playVoices, setAmbience, setWeather, setWrittenLines, usePlayerName, useSounds } from './sound'
 import { onLanguageContent } from './language'
@@ -282,6 +284,14 @@ function wasConfirmedOfAge(): boolean {
 export function App() {
   const [content, setContent] = useState<ContentPack | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [generationMode, setGenerationMode] = useState<'legacy' | 'dual' | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    window.api.generation.get().then((raw) => { if (!cancelled) setGenerationMode(generationSettings(raw).generationMode) }).catch((error) => { if (!cancelled) setError(errorMessage(error)) })
+    const changed = (event: Event) => { const mode = (event as CustomEvent).detail; if (mode === 'legacy' || mode === 'dual') setGenerationMode(mode) }
+    window.addEventListener(GENERATION_CHANGED, changed)
+    return () => { cancelled = true; window.removeEventListener(GENERATION_CHANGED, changed) }
+  }, [])
 
   useEffect(() => {
     window.api.getContent().then(setContent, (e) => setError(String(e)))
@@ -307,7 +317,7 @@ export function App() {
 
   if (!ofAge) return <AgeGate onConfirm={confirmOfAge} />
   if (error) return <main className="title">{t('shell.app.loadFailed', { error })}</main>
-  if (!content) return <main className="title">{t('shell.app.loading')}</main>
+  if (!content || generationMode === null) return <main className="title">{t('shell.app.loading')}</main>
 
   const start = (saved: SaveData) =>
     setSession({
@@ -327,27 +337,17 @@ export function App() {
       key={session.id}
       content={content}
       initial={session.data}
+      generationMode={generationMode}
       onLoad={start}
       onExit={() => setSession(null)}
     />
   )
 }
 
-/** What gets written to a save: a line still waiting for its reply is left out. */
-function savable(state: GameState, scene: Scene | null, turns: Turn[]): SaveData {
-  const unanswered = scene?.messages.at(-1)?.role === 'user'
-  const kept = scene && unanswered ? { ...scene, messages: scene.messages.slice(0, -1) } : scene
-  return {
-    state,
-    scene: kept,
-    // The turns that can be taken back go with the scene; one whose line was left out goes with its line.
-    turns: kept ? packTurns(unanswered ? turns.slice(0, -1) : turns, state, kept) : undefined
-  }
-}
-
 interface GameProps {
   content: ContentPack
   initial: SaveData
+  generationMode: 'legacy' | 'dual'
   onLoad: (data: SaveData) => void
   onExit: () => void
 }
@@ -360,17 +360,16 @@ const TOAST_MS = 6000
 const NOTICE_MS = 9000
 
 /** Owns the running game: its state, the open scene, and whichever dialog is showing. */
-function Game({ content: written, initial, onLoad, onExit }: GameProps) {
-  const [state, setState] = useState<GameState>(initial.state)
+function Game({ content: written, initial, generationMode, onLoad, onExit }: GameProps) {
+  const { session: game, getSession, dispatch, setState, setScene, setTurns, setEnded, setWalkingWith, setSleepingOver } = useGameSession(initial, generationMode)
+  const { state, scene, turns, ended, walkingWith, sleepingOver } = game
   usePlayerName(state.player.name)
   // The content as this game reads it: the player's name wherever the content wrote the token, and the house he has been let in it or out of it.
   const content = useMemo(() => withHousing(withCanon(withSkinTone(personalise(written, state.player.name), state.player.skinTone), state), state), [written, state.player.name, state.player.skinTone, state.canonChanges, state.housing])
-  const [scene, setScene] = useState<Scene | null>(initial.scene)
   // The catch phrase of the latest reply, waiting for its line to be on screen.
   const [phrase, setPhrase] = useState<{ file: string; line: string } | undefined>(undefined)
   const phraseHeard = useCallback(() => setPhrase(undefined), [])
   // The character has closed the scene and the player hasn't moved on yet.
-  const [ended, setEnded] = useState(false)
   // A picture he is taking in a scene, being written and drawn.
   const [photoBusy, setPhotoBusy] = useState(false)
   // What was said when the last picture failed: it can be taken again for as long as that is what is on screen.
@@ -379,15 +378,24 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
   const [movingTo, setMovingTo] = useState<string | null>(null)
   useEffect(() => window.api.onSceneMoving(setMovingTo), [])
   // Those he set off with for the next thing on his timetable as the scene ended: once the scene is settled, that is where he goes.
-  const [walkingWith, setWalkingWith] = useState<string[] | null>(null)
   // The scene ended with them going to sleep where they were: once it is settled, he wakes there in the morning.
-  const [sleepingOver, setSleepingOver] = useState(false)
   // The night going by, played once he has slept: whichever way he came to.
   const [dawn, setDawn] = useState(false)
   const endDawn = useCallback(() => setDawn(false), [])
   // Set once a scene is over, until the player dismisses its summary screen.
   const [summary, setSummary] = useState<SceneSummary | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [working, setBusy] = useState(false)
+  const busy = working || game.pending !== undefined
+  const dualSessionId = useRef(crypto.randomUUID()).current
+  const dualRequest = useRef<{ request: DualBeginRequest; token?: string } | null>(null)
+  const dualWork = useRef<symbol | null>(null)
+  const [heldDual, setHeldDual] = useState<Extract<DualBridgeResult, { status: 'held' }> | null>(null)
+  const [restoredInput, setRestoredInput] = useState<{ id: string; text: string } | undefined>(undefined)
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false; void window.api.dualTurn.invalidate({ sessionId: dualSessionId }).catch(() => undefined) }
+  }, [dualSessionId])
   const [notice, setNotice] = useState('')
   // Something to tell him that happened in the background, the feed's posts: never a reason to end a scene, so it is only ever put away.
   const [aside, setAside] = useState('')
@@ -405,7 +413,6 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
   const toured = (flag: string, skipped: boolean) =>
     setState((current) => ({ ...current, flags: { ...current.flags, [flag]: true, ...(skipped && { [TOUR_FLAGS.skipped]: true }) } }))
   // The game and the scene as they stood before each line he has said in this scene, newest last, so that a turn can be taken back.
-  const [turns, setTurns] = useState<Turn[]>(() => (initial.scene ? unpackTurns(initial.turns ?? [], initial.state, initial.scene) : []))
   useEffect(() => {
     if (!scene) setTurns([])
   }, [scene])
@@ -495,29 +502,29 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
       return
     }
     window.api
-      .saveGame({ slotId: AUTO_SLOT_ID, ...savable(state, scene, turns) })
+      .saveGame({ slotId: AUTO_SLOT_ID, ...saveGameSession({ state, scene, turns }) })
       .catch((error) => setNotice(t('shell.app.autosaveFailed', { error: errorMessage(error) })))
   }, [state, scene])
 
   // Whoever is in a scene has been met, from the moment it begins or she walks into it. One he had never met is a stranger
   // in it until her name is said.
   useEffect(() => {
-    if (!scene) return
+    if (!scene || game.pending) return
     const fresh = newStrangers(content, state, scene)
     if (fresh.length > 0) setScene((current) => current && { ...current, strangers: [...new Set([...(current.strangers ?? []), ...fresh])] })
     setState((current) => meet(content, current, sceneCast(scene)))
-  }, [content, scene])
+  }, [content, scene, game.pending])
 
   // On a day of presents, each woman brings him one the first time they meet: it is in his bag, and she hands it over in the scene.
   useEffect(() => {
-    if (!scene || scene.npc) return
+    if (!scene || scene.npc || game.pending) return
     const brought = bringPresents(content, state, sceneCast(scene))
     if (brought.state === state) return
     setState((current) => bringPresents(content, current, sceneCast(scene)).state)
     if (brought.presents.length === 0) return
     setScene((current) => current && { ...current, presents: [...(current.presents ?? []), ...brought.presents] })
     setNotice(brought.presents.map((present) => t('shell.app.gavePresent', { who: firstNames(content, [present.fromId]), item: content.items.find((item) => item.id === present.itemId)?.name ?? t('shell.app.aPresent') })).join(' '))
-  }, [content, scene, state])
+  }, [content, scene, state, game.pending])
 
   // As time goes by, the shifts that have ended are counted: worked, or missed and held against him.
   useEffect(() => {
@@ -883,6 +890,8 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
    */
   async function send(text?: string, said: Scene | null = scene, when: GameState = state, ask?: string, offered?: Proposal) {
     if (!said) return
+    if (getSession().pending) return
+    if (said.generation?.mode === 'dual') return sendDual(text, said, when, ask, offered)
     // Kept so that the line, and whatever it leads to, can be taken back.
     if (text !== undefined) setTurns((kept) => [...kept, { state: when, scene: said, text }].slice(-MAX_TURNS_KEPT))
     if (text !== undefined) play('sent')
@@ -1005,6 +1014,102 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
     }
   }
 
+  function cancelDual() {
+    const pending = getSession().pending
+    if (!pending) {
+      if (dualWork.current !== null) { dualWork.current = null; setBusy(false) }
+      return
+    }
+    dispatch({ type: 'cancel', turnId: pending.turnId })
+    dualRequest.current = null
+    dualWork.current = null
+    setHeldDual(null); setBusy(false)
+    if (pending.text !== undefined) setRestoredInput({ id: pending.turnId, text: pending.text })
+    void window.api.dualTurn.cancel({ sessionId: dualSessionId, turnId: pending.turnId }).catch(() => undefined)
+  }
+
+  function receiveDual(result: DualBridgeResult, turnId: string) {
+    if (!mounted.current || getSession().pending?.turnId !== turnId) return
+    if (result.status === 'held') {
+      dualRequest.current!.token = result.token
+      setHeldDual(result)
+      return
+    }
+    if (result.status !== 'ready') {
+      cancelDual()
+      if (result.status === 'failed') setNotice(t('scene.dual.unavailable'))
+      return
+    }
+    const before = getSession(), pending = before.pending!, response = result.ready.effects
+    const committed = dispatch({ type: 'commit', content, ready: result.ready })
+    if (committed === before) { cancelDual(); return }
+    dualRequest.current = null; setHeldDual(null)
+    // Audio, achievements, and notices belong only to the result accepted by the session.
+    play('reply'); playVoices(response.voices); setPhrase(response.phrase)
+    if (response.left) earn(earnedByLeaving(content, response.left.ids))
+    const stopped = response.offControlIds.filter((id) => onBirthControl(content, pending.state, id))
+    const accepted = response.proposalAccepted ? pending.asked.proposal : undefined
+    setAgreed(accepted ? t('shell.app.planAdded', { plan: accepted.title, who: firstNames(content, attendees(accepted)), when: describeWhen(content, accepted.time) })
+      : stopped.length ? t('shell.app.stoppedControl', { who: firstNames(content, stopped), count: stopped.length }) : pending.notice ?? '')
+    setLearned(response.contacts.filter((id) => !hasContact(pending.state, id)).flatMap((id) => {
+      const person = content.loveInterests.find((person) => person.id === id)
+      return person ? [t('shell.app.gaveBloomr', { who: person.name.split(' ')[0], handle: handleOf(person) })] : []
+    }))
+    setRolls(response.rolls); setLastPrompt(response.systemPrompt)
+    void window.api.dualTurn.acknowledge({ sessionId: dualSessionId, turnId, token: result.token }).catch(() => undefined)
+  }
+
+  async function sendDual(text: string | undefined, said: Scene, when: GameState, ask?: string, offered?: Proposal) {
+    if (dualWork.current !== null) return
+    const work = Symbol()
+    dualWork.current = work
+    setScene(said); setState((current) => withBackground(when, current))
+    const before = getSession()
+    setBusy(true); setNotice(''); setFailed(null)
+    try {
+      const info = await window.api.dualTurn.info()
+      if (!mounted.current || dualWork.current !== work) return
+      if (getSession().revision !== before.revision) {
+        if (text !== undefined) setRestoredInput({ id: crypto.randomUUID(), text })
+        return
+      }
+      if (!info.available) {
+        if (text !== undefined) setRestoredInput({ id: crypto.randomUUID(), text })
+        setNotice(t('scene.dual.unavailable')); return
+      }
+      const pending = prepareDualCheckpoint(content, getSession(), crypto.randomUUID(), info.contentRevision, { text, ask, backgroundId, offered })
+      dispatch({ type: 'begin', pending })
+      const request: DualBeginRequest = { state: pending.state, scene: pending.asked, turnId: pending.turnId,
+        sessionId: dualSessionId, revision: pending.revision, contentRevision: info.contentRevision }
+      dualRequest.current = { request }
+      setRolls([]); setPhrase(undefined); setLearned([])
+      if (text !== undefined) play('sent')
+      receiveDual(await window.api.dualTurn.begin(request), request.turnId)
+    } catch {
+      if (!mounted.current || dualWork.current !== work) return
+      cancelDual(); setNotice(t('scene.dual.unavailable'))
+      if (text !== undefined) setRestoredInput({ id: crypto.randomUUID(), text })
+    } finally { if (mounted.current && dualWork.current === work) { dualWork.current = null; setBusy(false) } }
+  }
+
+  async function recoverDual(regenerate: boolean) {
+    const saved = dualRequest.current, held = heldDual
+    if (!saved || !held || working || dualWork.current !== null || getSession().pending?.turnId !== held.turnId) return
+    const work = Symbol()
+    dualWork.current = work
+    setHeldDual(null); setBusy(true)
+    try {
+      if (regenerate) {
+        const turnId = crypto.randomUUID()
+        dispatch({ type: 'replacePending', turnId: held.turnId, nextTurnId: turnId })
+        const request = { ...saved.request, turnId }
+        dualRequest.current = { request }
+        receiveDual(await window.api.dualTurn.regenerate({ ...request, previousToken: held.token, previousTurnId: held.turnId }), turnId)
+      } else receiveDual(await window.api.dualTurn.retry({ sessionId: dualSessionId, turnId: held.turnId, token: held.token }), held.turnId)
+    } catch { if (mounted.current && dualWork.current === work) { cancelDual(); setNotice(t('scene.dual.unavailable')) } }
+    finally { if (mounted.current && dualWork.current === work) { dualWork.current = null; setBusy(false) } }
+  }
+
   // A scene opens with the character speaking first: a little narration, then her line. Asked for once a scene;
   // if it cannot be had, the player may simply speak first.
   const openedFor = useRef<Scene['beats'] | null>(null)
@@ -1034,6 +1139,11 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
   function redoFrom(turnsBack: number, text: string, cue?: string) {
     const turn = turns[turns.length - turnsBack]
     if (!turn || busy) return
+    if (turn.scene.generation?.mode === 'dual') {
+      const restored = dispatch({ type: 'rewind', turnsBack })
+      void send(text, restored.scene, restored.state, cue)
+      return
+    }
     const then = rewound(turn, state)
     setTurns(turns.slice(0, turns.length - turnsBack))
     setState(then)
@@ -1825,7 +1935,7 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
           content={shownCast}
           speakers={cast}
           state={state}
-          scene={scene}
+          scene={dialogueScene(game)!}
           backgroundId={scene.viewId ?? backgroundId}
           busy={busy}
           movingTo={movingTo}
@@ -1835,6 +1945,8 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
           onDismissAside={() => setAside('')}
           ended={ended}
           onSend={(text, cue) => send(text, scene, state, cue)}
+          onStopReply={scene.generation?.mode === 'dual' ? cancelDual : undefined}
+          restoredInput={restoredInput}
           onSkip={skipScene}
           onNameChild={(name) => {
             // With no name given he keeps hers. Either way it is settled, and he is not asked again.
@@ -1860,7 +1972,7 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
             setAgreed(t('shell.app.planAdded', { plan: scene.proposal.title, who: firstNames(content, attendees(scene.proposal)), when: describeWhen(content, scene.proposal.time) }))
           }}
           onDeclineProposal={() => setScene({ ...scene, proposal: undefined })}
-          onAnimationEnd={() => setScene((current) => current && { ...current, animationId: undefined, animationOf: undefined, animationGroup: undefined })}
+          onAnimationEnd={() => dispatch({ type: 'animationEnded' })}
           onAnswerBond={(accept) => {
             const asked = scene.bondProposal
             if (!asked) return
@@ -2115,24 +2227,33 @@ function Game({ content: written, initial, onLoad, onExit }: GameProps) {
         // Back to the game is Escape, the mouse's back button, or a press outside it.
         <Dialog title={t('shell.app.menu')} onClose={close} narrow ornate noClose>
           <div className="pause-menu">
-            <MainConnectionSelector busy={busy || photoBusy} />
+            <MainConnectionSelector busy={busy || photoBusy} mode={scene ? scene.generation?.mode ?? 'legacy' : undefined} />
             <GrandButton label={t('shell.app.save')} icon={<SaveIcon size={22} />} onClick={() => setPanel({ kind: 'save' })} />
             <GrandButton label={t('shell.app.load')} icon={<LoadIcon size={22} />} onClick={() => setPanel({ kind: 'load' })} />
             <GrandButton label={t('shell.app.settings')} icon={<GearIcon size={22} />} onClick={() => setPanel({ kind: 'settings' })} />
             <GrandButton label={t('shell.achievements.title')} icon={<HeartIcon size={22} />} onClick={() => setPanel({ kind: 'achievements' })} />
-            <GrandButton label={t('shell.app.exitToTitle')} icon={<JobIcon name="door" size={22} />} onClick={onExit} />
+            <GrandButton label={t('shell.app.exitToTitle')} icon={<JobIcon name="door" size={22} />} onClick={() => { cancelDual(); onExit() }} />
             <GrandButton label={t('shell.app.quit')} icon={<PowerIcon size={22} />} onClick={() => window.close()} />
           </div>
         </Dialog>
       )}
       {panel?.kind === 'settings' && <SettingsPanel onClose={close} generating={busy} />}
+      {heldDual && (
+        <Dialog title={t(heldDual.role === 'writer' ? 'scene.dual.writerFailure' : 'scene.dual.managerFailure')} onClose={cancelDual} narrow>
+          <div className="actions">
+            {heldDual.actions.includes('retryManager') && <Button disabled={working} onClick={() => void recoverDual(false)}>{t('scene.dual.retryManager')}</Button>}
+            {heldDual.actions.includes('regenerate') && <Button disabled={working} onClick={() => void recoverDual(true)}>{t('scene.dual.regenerate')}</Button>}
+            <Button variant="quiet" disabled={working} onClick={cancelDual}>{t('scene.dual.cancel')}</Button>
+          </div>
+        </Dialog>
+      )}
       {panel?.kind === 'achievements' && <AchievementsPanel onClose={close} />}
       {(panel?.kind === 'save' || panel?.kind === 'load') && (
         <SavesPanel
           content={content}
           mode={panel.kind}
-          current={savable(state, scene, turns)}
-          onLoad={onLoad}
+          current={saveGameSession({ state, scene, turns })}
+          onLoad={(data) => { cancelDual(); onLoad(data) }}
           onClose={close}
         />
       )}

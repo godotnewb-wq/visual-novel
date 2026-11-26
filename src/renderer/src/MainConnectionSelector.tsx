@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ConnectionSettingsView } from '../../shared/llmConnections'
+import type { GenerationSettingsView } from '../../shared/generationConnections'
+import { generationSettings } from './generationSettings'
 import { t } from '../../shared/i18n'
 import { connectionSettings } from './connectionForm'
 import { errorMessage } from './errors'
 import { Button } from './ui/Button'
 
-export function MainConnectionSelector({ busy }: { busy: boolean }) {
-  const [settings, setSettings] = useState<ConnectionSettingsView | null>(null)
+export function MainConnectionSelector({ busy, mode }: { busy: boolean; mode?: 'legacy' | 'dual' }) {
+  const [settings, setSettings] = useState<GenerationSettingsView | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
@@ -16,20 +17,23 @@ export function MainConnectionSelector({ busy }: { busy: boolean }) {
   useEffect(() => {
     let cancelled = false
     setError('')
-    window.api.connections.get().then((result) => {
-      const view = connectionSettings(result)
+    window.api.generation.get().then((result) => {
+      const view = generationSettings(result)
       if (!cancelled) setSettings(view)
     }).catch((error) => { if (!cancelled) setError(errorMessage(error)) })
     return () => { cancelled = true }
   }, [reload])
+  const role = (mode ?? settings?.generationMode) === 'dual' ? 'writer' : 'main'
 
   async function select(profileId: string) {
-    if (busy || changing.current || !settings || profileId === settings.assignments.main) return
+    if (busy || changing.current || !settings || profileId === settings.assignments[role]) return
     changing.current = true
     setPending(true)
     setError('')
     try {
-      const next = connectionSettings(await window.api.connections.assign({ role: 'main', profileId }))
+      if (role === 'main') connectionSettings(await window.api.connections.assign({ role: 'main', profileId }))
+      else generationSettings(await window.api.generation.assign({ role: 'writer', profileId }))
+      const next = generationSettings(await window.api.generation.get())
       setSettings(next)
     } catch (error) { setError(errorMessage(error)) }
     finally { changing.current = false; setPending(false) }
@@ -37,8 +41,9 @@ export function MainConnectionSelector({ busy }: { busy: boolean }) {
 
   return <div className="main-connection-selector">
     <label title={busy ? t('shell.settings.assignBusy') : t('shell.settings.mainAssignmentTitle')}>
-      {t('shell.settings.mainTitle')}
-      <select value={settings?.assignments.main ?? ''} disabled={busy || pending || !settings} onChange={(event) => void select(event.target.value)}>
+      {t(role === 'writer' ? 'scene.dual.writerProfile' : 'shell.settings.mainTitle')}
+      <select value={settings?.assignments[role] ?? ''} disabled={busy || pending || !settings} onChange={(event) => void select(event.target.value)}>
+        {settings && !settings.assignments[role] && <option value="">{t('shell.settings.none')}</option>}
         {!settings && <option value="">{t('shell.app.loading')}</option>}
         {settings?.profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
       </select>

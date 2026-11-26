@@ -4,6 +4,16 @@
 export const CHAT_CANCELLED = 'The reply was cancelled.'
 export const IPC = {
   chat: 'ai:chat',
+  dualInfo: 'ai:dual:info',
+  generationGet: 'generation:get',
+  generationAssign: 'generation:assign',
+  generationMode: 'generation:mode',
+  dualBegin: 'ai:dual:begin',
+  dualRetry: 'ai:dual:retry',
+  dualRegenerate: 'ai:dual:regenerate',
+  dualCancel: 'ai:dual:cancel',
+  dualInvalidate: 'ai:dual:invalidate',
+  dualAcknowledge: 'ai:dual:acknowledge',
   /** Stops the scene reply being written, if one is. */
   cancelChat: 'ai:cancelChat',
   /** Sent to the window while a reply is still being written: the scene is going somewhere, and where. */

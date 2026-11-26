@@ -1,6 +1,6 @@
 # Development status
 
-Current gate: F-001 accepted (D-023, 2026-11-25) within the documented isolated-data/mocked-endpoint scope. ACC-001 is resolved. F-002 planning now records six owner-confirmed product choices (D-024); the comprehensive proposal is in DUAL_CALL_GENERATION_DESIGN.md sections 13–17. Next gate: review the detailed plan and separately authorize P2.0 execution; no live rollout or F-002 implementation authorized.
+Current gate: F-001 accepted; F-002 implementation through P2.5 and local/mock P2.6 verification pass on `writer-manager` at `6788dfb`. D-033 covers acceptance testing, with no production source changes. Typecheck, 148 files/1,490 tests (one existing skip), production build, and Windows directory packaging pass. An isolated packaged API matrix has 25 passing records; the actual production App root passes neutral Dual/Legacy gameplay, redo, retry, completion, and edited-memory persistence. See F002_ACCEPTANCE_REPORT.md. Live data is unchanged. Final owner acceptance and any separately scoped real-provider evaluation remain pending. BUG-001's original cause remains unconfirmed.
 
 | Stage | Status | Next evidence |
 |---|---|---|
@@ -12,7 +12,13 @@ Current gate: F-001 accepted (D-023, 2026-11-25) within the documented isolated-
 | F001.4 | Implemented and tested; owner approved proceeding to F001.5 | Retain management-interface evidence |
 | F001.5 | Implemented and tested; owner approved F001.6 | Retain gameplay-selector evidence |
 | F001.6 | Complete; owner accepted documented isolated/mock scope (D-023) | Preserve evidence/limits; no live rollout authorized |
-| P2.0–P2.6 (F-002) | Planning in progress; six product choices confirmed under D-024; implementation not started | Review DUAL_CALL_GENERATION_DESIGN.md sections 13–17; separate P2.0 execution approval |
+| P2.0 (F-002 baseline) | Verified under D-025 within local/mock scope; original BUG-001 cause remains unconfirmed | Review F002_BASELINE_REPORT.md |
+| P2.1 (F-002 contracts) | Produced under D-027/D-028; basis accepted for P2.2 under D-029 | Retain contract and semantic/evidence boundaries |
+| P2.2 (F-002 validation) | Dormant schemas/pure validation implemented under D-029; 119 focused checks pass | Review F002_P22_VALIDATION_REPORT.md |
+| P2.3 (F-002) | Dormant assignments/orchestration implemented and verified | 70 new focused checks; 1,409 full-suite passes/one skip; typecheck/build pass |
+| P2.4 (F-002) | Application/IPC/save/undo integration verified in local/mock scope | 56 new focused checks; 1,465 full-suite passes/one skip; hidden isolated startup/save API smoke; controls not visually checked |
+| P2.5 (F-002) | Tracking, completion context, and optional mode/profile controls implemented under D-032 | 25 new tests; 1,490 passes/one skip; isolated neutral component UI/mock checks; F002_P25_TRACKING_REPORT.md |
+| P2.6 (F-002) | Local/mock and specific packaged gameplay checks pass under D-033; final owner acceptance pending | 25 API records, restart, seven actual-root UI captures; no real-provider quality/cost claim; F002_ACCEPTANCE_REPORT.md |
 | M2–M7 | Deferred | Re-baseline after F-002; individual gates |
 | R reliability/security | Pending, risk-based | Gates in IMPROVEMENT_PLAN.md |
 
@@ -34,7 +40,14 @@ Current gate: F-001 accepted (D-023, 2026-11-25) within the documented isolated-
 - [x] Review F001.5 evidence and approve F001.6 final-acceptance scope (D-021).
 - [x] Approve/implement/recheck D-022; resolve ACC-001 without changing the save format or live data.
 - [x] Obtain final owner acceptance for F-001 in the documented isolated/mock scope (D-023).
-- [ ] Separately scope and approve F-002/P2.0; keep live rollout/paid tests/commits/pushes separately authorized.
+- [x] Scope, authorize, and execute F-002/P2.0 under D-025; preserve unresolved BUG-001 evidence and keep live rollout/paid tests/commits/pushes separately authorized.
+- [x] Produce P2.1 contract/inventory artifacts and obtain the remaining mode/routing/recovery/overflow product choices (D-027/D-028).
+- [x] Accept P2.1 as P2.2's basis; implement/verify dormant parsing and validation under D-029.
+- [x] Implement and verify P2.3 dormant assignments/orchestration under D-030.
+- [x] Implement/verify P2.4 complete-turn application under D-031; retain visual/provider limits.
+- [x] Finish P2.5 witnessed tracking/completion context and optional mode/profile controls under D-032.
+- [x] Execute P2.6 local/mock and isolated packaged checks under D-033; record exact visual/provider limits.
+- [ ] Obtain final owner acceptance of F-002 within the documented scope; separately agree any real-provider evaluation.
 
 ## Verified repository and baseline
 
@@ -332,3 +345,137 @@ The owner accepted F-001 within the documented isolated-data/mocked-endpoint sco
 the original failure and successful D-022 repair/recheck remain in F001_ACCEPTANCE_REPORT.md. Acceptance is not
 live rollout, real-provider verification, release, commit/push, or F-002 implementation authorization. Only working
 documents changed while recording this decision. The next development step is a separately reviewed P2.0 plan.
+
+## F-002 P2.0 baseline — 2026-11-25
+
+The owner selected `writer-manager` and authorized the explained P2.0 scope with "Let's begin" (D-025).
+Initial branch/commit: `writer-manager`, `6788dfb0c6ea979a60e7ef35fb0eaf19ef73771c` (`added connection profiles`);
+initial working tree clean. This supersedes the earlier uncommitted-source checkpoint for current baseline purposes.
+
+Initial typecheck and production build passed; the initial suite passed 136 files/1,209 tests with one skip. Eleven
+synthetic transition cases now cover the real router/client, movement tool, parser, display-beat conversion, and pure
+movement application. Typecheck passes; full suite: 137 files, 1,220 passing tests, one existing skip. Build warnings
+remain the documented Zod annotation/Phaser import warnings. Existing runtime application source is unchanged.
+
+Both original backups match historical hashes (373 user-data files, twenty documentation files). A fresh exact
+restoration retained all bytes through validation, loaded thirteen saves, and retained its known historical add-on
+warning. An actual hidden source Electron/API smoke used separate synthetic keyless settings, checked actual storage
+and add-on paths, and passed all eleven scenarios/fifteen mocked requests. No age-gate state was changed and no visible
+gameplay acceptance was performed. The process closed. All 376 current live user-data files, original backups,
+archive bytes, and pre-existing application source remain unchanged; all 74 audit IDs remain present.
+
+The owner clarified that BUG-001 involved a standalone trailing command in curly braces and no transition (D-026).
+Synthetic examples reproduce that shape with no movement proposal. A tools-rejection retry also keeps the tool-naming
+prompt while removing the request's tools; scripted curly content then remains visible. This demonstrates a possible
+path, not the original cause. BUG-001 and M0-055 remain open; no runtime fix was made. Details and limits are recorded
+in F002_BASELINE_REPORT.md. Next: P2.1 contract review. No paid calls, live-data writes, commit, push, or rollout.
+
+## F-002 P2.1 contract artifacts — 2026-11-25
+
+Authorized by "Go ahead and begin p2.1" and continued at the owner's request (D-027). F002_OPERATION_INVENTORY.md
+maps all 23 current ChatResponse fields and eleven proposed operation families, including presentation/event coupling,
+birth-control core memory, source timing, witness cutoffs, closure settlement, existing unanswered-line save protection,
+and background/undo semantics. F002_TURN_CONTRACT.md defines complete proposed output types, bounds/refinements, source
+spans, agency/ambiguity rules, writer-first scheduling examples, recovery/commit order, note versions/retention/privacy,
+optional saved metadata/completion intent, and the proposed settings-version path.
+
+The owner selected next-scene mode changes, next-turn profile changes and role-aware selector behavior, existing NSFW
+writer routing with no Manager profile fallback, explicit full regeneration for irreconcilable prose, and continued
+play under the specified note-cap retention policy (D-028). Numeric caps and implementation mechanics remain proposals
+for contract review. No application schemas, validators, prompts, migrations, IPC, or activation were implemented.
+
+The two extracted TypeScript contract blocks compile standalone. The coverage check maps all 23 response fields and
+eleven operation families. All 554 source/script/config files in the P2.0 manifest match their prior hashes; archived
+originals and all 74 audit IDs are retained. The current shipped Tamsin opening prompt is 13,971 characters, approximately
+3,493 tokens under prompt-size.ts's estimate. Proposed fixed instruction supplements are 423/502 characters; those are
+not full prompts and prove no token/quality improvement. Existing repository typecheck/full-suite results are reported
+at the end of the P2.1 work in the current chat. No provider/UI test or user-data write accompanies this documentation stage.
+
+Next: owner review of the concrete contract, then separately scoped P2.2 dormant shared parsing/validation. Keep P2.0
+comparison tests and all existing user changes; no commit, push, paid request, or runtime activation is authorized here.
+
+## F-002 P2.2 dormant validation — 2026-11-25
+
+The owner approved the next step after P2.1 (D-029). Four new shared files implement dormant strict schemas, pure
+validation/Writer guarding, and adjacent tests. Settings/Scene/save schemas, routing, prompts, IPC, application
+imports, and live data are unchanged. Earlier P2.0/P2.1 changes and staged files are retained.
+
+119 focused checks pass. Typecheck passes; full suite: 139 files, 1,339 passing tests, one pre-existing skip. Production
+build passes with existing Zod/Phaser warnings. Inferred schema types match P2.1 wire/note/scene types bidirectionally.
+All 554 prior source/script/config hashes, both original backup trees, the full archive, and 74 finding IDs remain.
+No app/provider/UI test, user-data migration/write, commit, push, or activation was performed in P2.2.
+
+Validation returns mechanically eligible candidates with `requiresConsistencyReview: true`, not proof of consent or
+narrative meaning, and performs no live effects. Note visibility intersects all quoted conversational audiences,
+including historical sources; correction/resolution validation leaves old entries intact. Later stages still owe
+effect application, retention, save/load/undo, retries/queues, and consistency checks. The dormant Writer guard holds
+the synthetic leakage families; Legacy is unchanged and BUG-001 remains open. Details: F002_P22_VALIDATION_REPORT.md.
+Next at that checkpoint: review P2.2 and scope P2.3; superseded by the P2.3 update below.
+
+## F-002 P2.3 dormant assignments/orchestration — 2026-11-25
+
+The owner approved the next step under D-030. Independent Writer/Manager references, protected opt-in v3 settings
+conversion, captured profiles, localized separate prompts, tool-free transport, sequential calls, bounded recovery,
+and owner/session cancellation now exist. Normal startup stays v2; no Dual IPC, controls, save fields, or gameplay
+activation. P2.4 must apply and review candidate effects through the complete-turn boundary before publication.
+
+Typecheck/build pass; full suite: 143 files, 1,409 tests pass, one existing skip. The four new test files add 70 checks.
+All 122 sampled Legacy prompt outputs match the prior implementation; combined Dual prompt inputs are larger in
+the measured new-game sample. There is no provider latency/cost/quality or visual acceptance claim. Only isolated
+settings files and mocked completions were used; live settings/saves/add-ons, backups, archives, and 74 findings are
+intact. The five intended prior source changes leave the other 549 baseline files unchanged. No staging, commit,
+push, real-provider request, or live migration. See F002_P23_ORCHESTRATION_REPORT.md for full evidence and limits.
+
+Next: P2.4 complete-turn application, minimal compatible persistence, recovery, save/undo, and background merges.
+
+## F-002 P2.4 complete-turn application — 2026-11-25
+
+The owner's request to begin P2.4 (D-031) now has an implemented shared effect/application path, a focused renderer
+session commit, owning-frame IPC/recovery, optional scene metadata, save/restart/undo, and background preservation.
+Pending preparation remains private; a duplicate, stale, or cancelled result cannot publish. Known prose conflicts
+use bounded recovery, with explicit semantic limitations. Basic bounded note reconciliation supports persistence;
+finished witness/summary tracking and mode/profile controls remain P2.5.
+
+Typecheck/build pass; full suite: 146 files, 1,465 tests pass/one existing skip. The new three files add 56 checks.
+The compiled hidden API smoke verifies isolated v2 startup and optional metadata round-trip with zero network calls.
+All 13 original backup saves still parse; all 122 sampled Legacy prompts match. Live settings/saves/add-ons and
+original backups/archive remain intact; the other 541 prior source files are unchanged outside the thirteen intended
+P2.3/P2.4 modifications. Controls have not been visually checked. No live migration, provider/paid call, staging,
+commit, or push. Full evidence: F002_P24_APPLICATION_REPORT.md. Next: P2.5 tracking/completion context and controls.
+
+## F-002 P2.5 tracking and controls — 2026-11-25
+
+D-032 implements bounded witnessed encounter notes with private correction/resolution versions, safe retention,
+deduplication, and supporting context for existing completion summaries. Optional metadata retains witnesses,
+turn identity, and two comfort assessments through save/resume/undo. Older unmarked scenes remain Legacy; new
+scenes capture the selected mode. Protected v3 startup conversion retains existing connections/credentials and
+defaults to Legacy. Settings exposes independent Writer/Manager assignments and optional Dual-call; mode changes
+apply next scene and profile changes next turn. See F002_P25_TRACKING_REPORT.md for exact behavior/data touches.
+
+Typecheck/build pass; 148 files/1,490 tests pass with one existing skip, including 25 new checks. All 122 sampled
+Legacy prompts match. Thirteen original saves parse; live settings/saves/add-ons/Local State, backups/archive, and
+all 74 finding IDs remain intact. Neutral component previews exercise actual main/preload IPC with 16 mocked
+completions and no real-provider calls. Settings/recovery/selectors and neutral scenes were visually inspected;
+the preview used reduced motion for the final NPC scene. The production root's existing age gate was left untouched.
+This is not production-root or transition-animation acceptance. No staging, commit, push, release, or live launch.
+Next: P2.6 broader gameplay/completion acceptance and any explicitly scoped provider evaluation.
+
+## F-002 P2.6 local and packaged acceptance — 2026-11-25
+
+The owner requested P2.6 under D-033. No production source/content change was needed: all 581 pre-stage files
+retain their hashes. Typecheck and the full suite pass (148 files, 1,490 tests/one skip). Production/Windows directory
+build passes after the approved retry of a sandbox DNS failure. Executable is unsigned. All 169 built files and
+4,296 loose content files match the packaged originals; the release executable/archive stayed unchanged by tests.
+
+A disposable packaged bootstrap redirects actual user/session storage and mocks only fixture endpoints. Twenty-five
+final API records pass with 52 scripted completions, including group privacy/summaries, lecture/NPC, movement,
+meetings, presentation, closure, held output, retry/regenerate/cancel, connection arrangements, and NSFW routing.
+Restart preserves exact save/settings bytes and backup count. The unchanged production App root also passes neutral
+Dual/Legacy turns, real redo, held-draft retry, saved completion, and edited summary memory: 15 scripted completions
+and seven inspected screenshots, with real transitions enabled. Normal age confirmation occurred outside automation;
+the harness neither submitted it nor wrote its flag. The test app closed after verification.
+
+Live settings/saves/add-ons/Local State, backups, archive, and all 74 finding IDs remain unchanged. No real-provider
+requests, paid tests, staging, commits, pushes, or release. Specific adult/event/overnight paths retain automated
+rule coverage but were not all visually played. Full methodology, mock measurements, failure corrections, and limits:
+F002_ACCEPTANCE_REPORT.md. Final owner acceptance and any agreed provider/quality/latency/cost evaluation remain.

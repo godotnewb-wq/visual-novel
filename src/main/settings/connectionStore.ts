@@ -13,9 +13,14 @@ import type { CapturedConnection, ConnectionSnapshot } from './requestSnapshot'
 import { ConnectionStoreError } from './connectionErrors'
 import { writeConnectionFile, writeExclusive, type ConnectionFiles } from './connectionFiles'
 import { migrateConnectionSettings, StoredConnectionSettingsSchema, type StoredConnectionSettings } from './migrate'
+import { AssignGenerationConnectionSchema, GENERATION_SETTINGS_VERSION, GenerationSettingsViewSchema, SetGenerationModeSchema, type GenerationSettingsView } from '../../shared/generationConnections'
+import { generationLegacyView, migrateGenerationSettings, StoredGenerationSettingsSchema } from './generationMigrate'
+import type { GenerationSnapshot } from './requestSnapshot'
 import type { KeyCipher } from './store'
 
 interface ConnectionStoreOptions {
+  /** The application opts into v3; older callers can still explicitly use the v2 store. */
+  generation?: boolean
   cipher?: KeyCipher
   names?: Record<ConnectionRole, string>
   makeId?: () => string
@@ -28,7 +33,7 @@ function validate<S extends z.ZodType>(schema: S, raw: unknown, code: Connection
   return result.data
 }
 
-/** The sole writer of the active version-2 settings file. */
+/** The sole settings writer, with an exact backup before conversion and a v2 compatibility view. */
 export class ConnectionStore {
   private settings: StoredConnectionSettings
   private fileContents: Buffer | undefined
@@ -36,6 +41,7 @@ export class ConnectionStore {
   private readonly makeId: () => string
   private readonly cipher: KeyCipher | undefined
   readonly migrationBackupPath: string | undefined
+  private generation: { generationMode: 'legacy' | 'dual'; writer: string | null; manager: string | null } | null = null
 
   constructor(private readonly path: string, options: ConnectionStoreOptions = {}) {
     this.files = options.files ?? fs
@@ -46,7 +52,7 @@ export class ConnectionStore {
     if (this.fileContents !== undefined) {
       try { raw = JSON.parse(this.fileContents.toString('utf8')) } catch { throw new ConnectionStoreError('invalid-settings') }
     }
-    if (typeof raw === 'object' && raw !== null && 'settingsVersion' in raw) {
+    if (!options.generation && typeof raw === 'object' && raw !== null && 'settingsVersion' in raw) {
       this.settings = validate(StoredConnectionSettingsSchema, raw, 'invalid-settings')
       return
     }
@@ -54,13 +60,23 @@ export class ConnectionStore {
     const names = options.names ?? { main: t('shell.settings.mainTitle'), nsfw: t('shell.settings.nsfwTitle') }
     let converted: StoredConnectionSettings
     try {
-      converted = migrateConnectionSettings(raw, {
+      const versioned = typeof raw === 'object' && raw !== null && 'settingsVersion' in raw
+      const identities = versioned ? undefined : {
         main: { id: this.makeId(), name: names.main }, nsfw: { id: this.makeId(), name: names.nsfw }
-      })
+      }
+      if (options.generation) {
+        const next = migrateGenerationSettings(raw, identities)
+        this.generation = { generationMode: next.generationMode, writer: next.assignments.writer, manager: next.assignments.manager }
+        converted = generationLegacyView(next)
+        if (typeof raw === 'object' && raw !== null && 'settingsVersion' in raw && raw.settingsVersion === GENERATION_SETTINGS_VERSION) {
+          this.settings = converted
+          return
+        }
+      } else converted = migrateConnectionSettings(raw, identities!)
     } catch { throw new ConnectionStoreError('invalid-settings') }
     converted = this.protectKeys(converted)
     if (this.fileContents !== undefined) {
-      this.migrationBackupPath = `${this.path}.pre-v2-${randomUUID()}.bak`
+      this.migrationBackupPath = `${this.path}.pre-v${this.generation ? GENERATION_SETTINGS_VERSION : 2}-${randomUUID()}.bak`
       this.assertUnchanged()
       try { writeExclusive(this.migrationBackupPath, this.fileContents, this.files) } catch { throw new ConnectionStoreError('backup-failed') }
     }
@@ -81,21 +97,53 @@ export class ConnectionStore {
   }
 
   snapshot(): ConnectionSnapshot {
-    const capture = (id: string): CapturedConnection => {
-      const { id: _id, name: _name, apiKey: _key, apiKeyEncrypted: _encrypted, ...parameters } = this.profile(id)
-      let connection: LlmProfile | ConnectionStoreError
-      try { connection = this.getProfile(id) } catch { connection = new ConnectionStoreError('credential-unavailable') }
-      return Object.freeze({ id, parameters: Object.freeze(parameters), resolve: () => {
-        if (connection instanceof ConnectionStoreError) throw connection
-        return { ...connection }
-      } })
-    }
     return Object.freeze({
-      main: capture(this.settings.assignments.main),
-      nsfw: this.settings.assignments.nsfw === null ? null : capture(this.settings.assignments.nsfw),
+      main: this.capture(this.settings.assignments.main),
+      nsfw: this.settings.assignments.nsfw === null ? null : this.capture(this.settings.assignments.nsfw),
       language: this.settings.language, memoryRecall: this.settings.memoryRecall, newsWebSearch: this.settings.newsWebSearch,
       languageInstruction: t('core.llm.writeIn')
     })
+  }
+
+  getGenerationView(): GenerationSettingsView {
+    if (!this.generation) throw new ConnectionStoreError('invalid-request')
+    const view = this.getView()
+    return GenerationSettingsViewSchema.parse({ ...view, settingsVersion: GENERATION_SETTINGS_VERSION,
+      generationMode: this.generation.generationMode,
+      assignments: { ...view.assignments, writer: this.generation.writer, manager: this.generation.manager } })
+  }
+
+  assignGeneration(raw: unknown): GenerationSettingsView {
+    if (!this.generation) throw new ConnectionStoreError('invalid-request')
+    const { role, profileId } = validate(AssignGenerationConnectionSchema, raw)
+    if (profileId !== null) this.profile(profileId)
+    this.settings = this.persist(this.protectKeys(this.settings), { ...this.generation, [role]: profileId })
+    return this.getGenerationView()
+  }
+
+  generationSnapshot(): GenerationSnapshot {
+    if (!this.generation) throw new ConnectionStoreError('invalid-request')
+    const generation = this.generation
+    return Object.freeze({ ...this.snapshot(), generationMode: generation.generationMode,
+      writer: generation.writer === null ? null : this.capture(generation.writer),
+      manager: generation.manager === null ? null : this.capture(generation.manager) })
+  }
+
+  setGenerationMode(raw: unknown): GenerationSettingsView {
+    if (!this.generation) throw new ConnectionStoreError('invalid-request')
+    const { generationMode } = validate(SetGenerationModeSchema, raw)
+    this.settings = this.persist(this.protectKeys(this.settings), { ...this.generation, generationMode })
+    return this.getGenerationView()
+  }
+
+  private capture(id: string): CapturedConnection {
+    const { id: _id, name: _name, apiKey: _key, apiKeyEncrypted: _encrypted, ...parameters } = this.profile(id)
+    let connection: LlmProfile | ConnectionStoreError
+    try { connection = this.getProfile(id) } catch { connection = new ConnectionStoreError('credential-unavailable') }
+    return Object.freeze({ id, parameters: Object.freeze(parameters), resolve: () => {
+      if (connection instanceof ConnectionStoreError) throw connection
+      return { ...connection }
+    } })
   }
 
   private resolveProfile(profile: StoredConnectionSettings['profiles'][number]): LlmProfile {
@@ -137,7 +185,7 @@ export class ConnectionStore {
   delete(raw: unknown): ConnectionSettingsView {
     const { id } = validate(DeleteConnectionSchema, raw)
     this.profile(id)
-    if (Object.values(this.settings.assignments).includes(id)) throw new ConnectionStoreError('profile-assigned')
+    if (Object.values(this.settings.assignments).includes(id) || this.generation?.writer === id || this.generation?.manager === id) throw new ConnectionStoreError('profile-assigned')
     return this.commit({ ...this.settings, profiles: this.settings.profiles.filter((profile) => profile.id !== id) })
   }
 
@@ -226,13 +274,17 @@ export class ConnectionStore {
     return this.getView()
   }
 
-  private persist(settings: StoredConnectionSettings): StoredConnectionSettings {
-    const bytes = Buffer.from(`${JSON.stringify(settings, null, 2)}\n`, 'utf8')
+  private persist(settings: StoredConnectionSettings, generation = this.generation): StoredConnectionSettings {
+    const stored = generation ? validate(StoredGenerationSettingsSchema, { ...settings,
+      settingsVersion: GENERATION_SETTINGS_VERSION, generationMode: generation.generationMode,
+      assignments: { ...settings.assignments, writer: generation.writer, manager: generation.manager } }) : settings
+    const bytes = Buffer.from(`${JSON.stringify(stored, null, 2)}\n`, 'utf8')
     try { writeConnectionFile(this.path, bytes, this.files, () => this.assertUnchanged()) } catch (error) {
       if (error instanceof ConnectionStoreError) throw error
       throw new ConnectionStoreError('write-failed')
     }
     this.fileContents = bytes
+    this.generation = generation
     return settings
   }
 

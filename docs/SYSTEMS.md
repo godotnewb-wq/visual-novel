@@ -179,6 +179,11 @@ Read the section for a system before changing it. For what the game is and how t
   are JSON files in the `saves` folder of Electron's user-data directory, one per slot.
 - Saves from a different format version, or damaged files, are shown as unreadable rather
   than hidden. Loading tolerates content changes such as a newly added love interest.
+- F-002 adds optional scene generation metadata without changing save version 1. Completed Dual turns retain
+  identity, completion intent, and bounded evidence-backed notes through save/load and packed undo. Pending drafts
+  are session-only; autosave and manual save keep the last committed scene. Witness ranges, linked note versions,
+  and the last two comfort assessments are optional compatible fields. Older unmarked scenes resume in Legacy.
+  See [P2.5 verification](F002_P25_TRACKING_REPORT.md).
 
 ## Achievements
 
@@ -336,8 +341,18 @@ asked to write. The choice is kept in `settings.json` with the LLM profiles.
 
 ## AI
 
+F-002 prepares a Dual turn privately, validates Writer/Manager results in main, then commits
+typed effects, dialogue, undo, and completion together through the shared session reducer. Independent background
+updates are preserved; cancelled/stale work cannot publish. Legacy still uses its existing chat/effect path. Normal
+startup uses protected version-3 settings conversion and defaults existing installations to Legacy. Settings exposes
+independent Writer/Manager assignments and optional Dual-call mode. Mode changes apply next scene; profile changes
+apply next turn. See [P2.5 implementation](F002_P25_TRACKING_REPORT.md) and [P2.6 acceptance](F002_ACCEPTANCE_REPORT.md)
+for actual local/mock and packaged checks, remaining provider limits, and pending final owner acceptance.
+
 - **Settings → LLMs** lists all named connections, including unassigned drafts, and assigns saved profiles to
-  **Main LLM** and optional **NSFW LLM**. Version-2 settings hold UUIDs and role references. A single editor creates,
+  **Main LLM**, optional **NSFW LLM**, and the separate **Writer LLM**/**Manager LLM** roles. Version-3 settings hold UUIDs,
+  role references, and the next-scene mode preference. Both Dual roles must be configured before enabling Dual-call.
+  A single editor creates,
   edits, renames, duplicates without keys, and deletes profiles. Assigned profiles must be reassigned before deletion.
   Each has base URL, API key, model, temperature, max reply tokens,
   a timeout (two minutes by default; drafting a character or subject waits at least three),
@@ -357,10 +372,17 @@ asked to write. The choice is kept in `settings.json` with the LLM profiles.
   generation; selecting a profile to edit does not assign it. Test uses unsaved values without writing and sends a small
   completion; its tooltip discloses possible provider charges. Changed endpoints require explicit key entry or clear.
   Each logical request snapshots assigned profiles and parameters for its retries; later requests see later edits.
-  The gameplay pause menu has a compact Main LLM selector (`MainConnectionSelector.tsx`). It refreshes on opening,
-  persists the main assignment on success, and retains the previous choice on error. Foreground/scene generation,
+  The gameplay pause menu has a compact Main/Writer LLM selector (`MainConnectionSelector.tsx`), according to the
+  open scene's mode. It refreshes on opening, persists the selected role on success, and retains the previous choice on error. Foreground/scene generation,
   photo generation, and pending writes disable it. It changes no scene/history/undo state or NSFW assignment;
   background requests already running retain their captured profiles.
+- **Encounter notes** (`shared/game/encounterNotes.ts`) retain at most 128 evidence-backed claims in Dual scenes.
+  Corrections and resolutions append versions with their own audiences; each character sees only versions whose
+  supporting receipts she heard. Safe retention removes superseded/closed/optional notes first, pins unresolved
+  promises/plans, and records limited tracking without blocking play. Writer/summary views are capped at eight
+  notes/4,096 serialized characters per character; Manager targets at twelve/12,000. Summaries retain their existing
+  routing, validation, and 12,000-character transcript behavior. Notes do not award meters or discoveries directly;
+  spending remains based on the authoritative player transcript. Ordinary NPC restrictions remain unchanged.
 - **Scenes** start with an activity shared with a love interest. The character ends the
   scene from within the conversation: the prompt tells the LLM to finish its parting line
   with `[END SCENE]` when the player says goodbye or the moment has run its course. Left

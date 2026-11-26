@@ -7,6 +7,8 @@ import { ConnectionProfileFields } from './ConnectionProfileFields'
 import { Button } from './ui/Button'
 import { useConfirm } from './ui/Confirm'
 import { errorMessage } from './errors'
+import { GenerationControls } from './GenerationControls'
+import type { GenerationSettingsView } from '../../shared/generationConnections'
 
 interface Props {
   generating: boolean
@@ -22,6 +24,8 @@ export function ConnectionManager({ generating, onDirtyChange, onBusyChange, con
   const [draft, setDraft] = useState<LibraryDraft | null>(null)
   const [preferences, setPreferences] = useState<ConnectionPreferences | null>(null)
   const [busy, setBusy] = useState(false)
+  const [generationBusy, setGenerationBusy] = useState(false)
+  const [generation, setGeneration] = useState<GenerationSettingsView | null>(null)
   const [status, setStatus] = useState('')
   const [editorVersion, setEditorVersion] = useState(0)
   const running = useRef(false)
@@ -30,7 +34,7 @@ export function ConnectionManager({ generating, onDirtyChange, onBusyChange, con
   const preferencesDirty = !!(view && preferences && (preferences.memoryRecall !== view.memoryRecall || preferences.newsWebSearch !== view.newsWebSearch))
 
   useEffect(() => onDirtyChange(profileDirty || preferencesDirty), [profileDirty, preferencesDirty, onDirtyChange])
-  useEffect(() => onBusyChange(busy), [busy, onBusyChange])
+  useEffect(() => onBusyChange(busy || generationBusy), [busy, generationBusy, onBusyChange])
   useEffect(() => {
     let cancelled = false
     window.api.connections.get().then((result) => {
@@ -114,10 +118,12 @@ export function ConnectionManager({ generating, onDirtyChange, onBusyChange, con
     })}>{t('shell.settings.retry')}</Button>}
   </div>
 
-  const assigned = Object.values(view.assignments).includes(draft.profileId ?? '')
+  const assigned = Object.values(generation?.assignments ?? view.assignments).includes(draft.profileId ?? '')
   const change = (patch: Partial<LibraryDraft>) => { setDraft({ ...draft, ...patch }); setStatus('') }
 
   return <>
+    <GenerationControls library={view} disabled={busy || generationBusy || generating} onBusy={setGenerationBusy} onView={setGeneration} />
+    <fieldset disabled={generationBusy} className="connection-library-controls">
     <div className="connection-assignments">
       {CONNECTION_ROLES.map((role) => <label key={role} title={generating ? t('shell.settings.assignBusy') : undefined}>
         {roleLabel(role)}
@@ -134,7 +140,9 @@ export function ConnectionManager({ generating, onDirtyChange, onBusyChange, con
           {view.profiles.map((profile) => <li key={profile.id}>
             <Button disabled={busy} aria-pressed={draft.profileId === profile.id} onClick={() => void select(profile.id)}>
               <span>{profile.name}</span>
-              <small>{CONNECTION_ROLES.filter((role) => view.assignments[role] === profile.id).map(roleLabel).join(' · ') || t('shell.settings.unassigned')}</small>
+              <small>{[...CONNECTION_ROLES.filter((role) => view.assignments[role] === profile.id).map(roleLabel),
+                ...(generation?.assignments.writer === profile.id ? [t('scene.dual.writerProfile')] : []),
+                ...(generation?.assignments.manager === profile.id ? [t('scene.dual.managerProfile')] : [])].join(' · ') || t('shell.settings.unassigned')}</small>
             </Button>
           </li>)}
         </ul>
@@ -186,6 +194,7 @@ export function ConnectionManager({ generating, onDirtyChange, onBusyChange, con
       </fieldset>
     </form>
     <p className="status" role="status" aria-live="polite">{status}</p>
+    </fieldset>
     {dialog}
   </>
 }

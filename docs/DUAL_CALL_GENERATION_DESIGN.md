@@ -1,6 +1,6 @@
 # Project 2 --- Dual-Call Generation Architecture
 
-**Status:** Product choices confirmed in section 13; implementation plan proposed for review\
+**Status:** Implementation through P2.5 and local/mock P2.6 checks pass (D-033); specific packaged gameplay verified; final owner/provider acceptance pending\
 **Date:** 2026-11-24\
 **Repository:** godotnewb-wq/rpg-game\
 **Dependency:** Project 1 --- Multiple LLM Connection Profiles
@@ -394,7 +394,9 @@ Before source changes, list exact affected files for the stage. Candidate areas 
 - Adjacent tests and working documentation. Content character rewrites and generated catalogue changes are not planned.
 
 These paths identify likely integration points, not a requirement to edit every file or a claim that new modules exist.
-The baseline commit predates uncommitted F-001 implementation, so commit ID alone cannot identify the accepted source.
+At the planning checkpoint, the baseline commit predated uncommitted F-001 implementation. The owner subsequently
+committed that implementation and selected `writer-manager`; P2.0 now records a clean initial baseline at
+`6788dfb0c6ea979a60e7ef35fb0eaf19ef73771c`. See F002_BASELINE_REPORT.md for current source and verification evidence.
 
 ## 16. Acceptance criteria and measurements
 
@@ -429,12 +431,50 @@ the relevant gates. Report exact results and distinguish automated checks, mocke
 
 ## 17. Remaining review choices and authorization boundary
 
-Owner review is still needed for the proposed mode-switch timing, gameplay selector behavior, precise NSFW Writer
-routing/Manager fallback policy, and recovery controls when the prose itself must be regenerated. P2.1 must settle
-ledger overflow/retention limits, typed operation details, preflight coverage, validation/consent ambiguity cases,
-provider capabilities, and save-format requirements with concrete examples. Performance budgets follow baseline data.
+The owner settled mode/profile timing, role-aware gameplay selection, NSFW Writer routing/no Manager fallback,
+explicit full regeneration, and note-overflow behavior under D-028. P2.1's concrete proposal now lives in
+F002_TURN_CONTRACT.md, with all current effects inventoried in F002_OPERATION_INVENTORY.md. Review the proposed
+typed shapes and P2.2 implementation evidence in F002_P22_VALIDATION_REPORT.md before P2.3 integration. The dormant
+schemas/validation use the reviewed caps; staged commit, actual note retention, and persistence integration remain
+later stages. Actual provider capabilities/performance budgets still require scoped data.
 
-The six choices in section 13 are confirmed. All additional behavior in sections 14–16 is a proposal made during
-planning; none has been silently implemented. This planning update changes documentation only. It does not touch live
-settings, credentials, saves, add-ons, or the immutable audit archive. P2.0 execution, source changes, a new branch,
-real-provider/paid requests, rollout, release, commits, and pushes are not authorized by this document.
+The six choices in section 13 are confirmed. Additional Dual-call behavior in sections 14–16 remains proposed.
+The later D-025 authorizes P2.0 baseline/testing execution, now verified with eleven synthetic comparisons and an
+isolated hidden runtime check; no runtime behavior changed. D-026 adds the owner's curly-braced/no-transition report
+and leaves its original exact cause unconfirmed. D-027 authorizes the produced P2.1 review artifacts; D-028 records
+the additional product choices. D-029 then authorizes the implemented dormant P2.2 schemas/pure validation. See
+F002_BASELINE_REPORT.md, F002_TURN_CONTRACT.md, and F002_P22_VALIDATION_REPORT.md. Later integration, real-provider/paid
+requests, rollout, release, commits, and pushes are not authorized by this document.
+
+P2.3 checkpoint (D-030, 2026-11-25): dormant assignments, protected opt-in settings conversion, captured roles,
+separate localized prompts/transport, sequential requests, bounded recovery, and session cancellation are verified.
+Normal startup remains version 2; no IPC/UI/save activation. The service returns candidates requiring consistency
+review and performs no game effects. Typecheck/build pass; 70 new focused checks and 1,409 full-suite tests pass,
+with one existing skip. All 122 sampled Legacy prompts match; measured combined Dual inputs are larger. See
+F002_P23_ORCHESTRATION_REPORT.md for data boundaries and actual measurement limits. Next: P2.4 complete-turn
+application; P2.5 still owes finished tracking and reviewed controls before gameplay activation.
+
+P2.4 checkpoint (D-031, 2026-11-25): typed game/presentation effects, a staged session commit, owning-frame bridge,
+bounded recovery controls, compatible optional metadata, save/restart/undo, and background merging are implemented.
+56 new focused checks, typecheck/build, and 1,465 full-suite tests pass/one existing skip. Hidden compiled API smoke
+uses fresh isolated data and no network; all original backup saves still parse. Controls are not visually accepted,
+and consistency checks do not prove arbitrary language meaning. See F002_P24_APPLICATION_REPORT.md. Normal startup
+remains v2/Legacy. Next is P2.5 tracking/completion context and reviewed mode/profile controls before activation.
+
+P2.5 checkpoint (D-032, 2026-11-25), superseding the activation gate: witnessed note versions and safe bounded
+retention, supporting summary context, compatible metadata/save/undo, and independent mode/profile controls are
+implemented. Normal startup uses protected v3 conversion and retains Legacy until the user explicitly enables
+Dual-call with both roles configured. Scenes pin their mode; profiles apply next turn. Typecheck/build pass;
+25 new checks and 1,490 full-suite passes/one skip; 122 sampled Legacy prompts match. Neutral component previews
+with actual main/preload IPC and mocked transport verify controls, retry/cancel, mode pinning, and new NPC scenes.
+The production age gate was not changed or submitted; component/layout evidence is not production-root or
+animation acceptance. Data/backups/archive remain intact. See F002_P25_TRACKING_REPORT.md. P2.6 broader gameplay
+and any separately scoped provider evaluation remain; no real-provider/paid, release, commit, or push acceptance.
+
+P2.6 checkpoint (D-033, 2026-11-25): full typecheck/tests and production/Windows directory builds pass. Twenty-five
+isolated packaged API records and restart pass, with actual-root neutral Dual/Legacy UI, redo, retry, completion,
+and edited summary memory verified in seven final captures. No production source changed. Live data, artifact
+originals, backups, archive, and audit findings remain intact. F002_ACCEPTANCE_REPORT.md distinguishes this local/
+mock evidence from visually unplayed paths, real-provider quality/latency/cost, and final owner acceptance. No
+real-provider requests, live migration, release, commit, or push. Starting acceptance testing does not accept F-002
+on the owner's behalf; that final decision remains pending.

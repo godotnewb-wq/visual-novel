@@ -6,6 +6,8 @@ import type { Relation } from './game/rapport'
 import { z } from 'zod'
 import { NewsPlanSchema, type LoveInterest, type Major, type NewsSource } from './model'
 import type { MajorIdea } from './game/draftMajor'
+import type { DualTurnApi } from './dualTurnBridge'
+import type { GenerationApi } from './generationConnections'
 import type { Card } from './game/sillyCard'
 import type { PackPreview, PackSelection } from './packs'
 import type { AchievementId } from './game/achievements'
@@ -254,6 +256,8 @@ export interface LanguageView {
 }
 
 export interface RendererApi {
+  generation: GenerationApi
+  dualTurn: DualTurnApi
   getContent(): Promise<ContentPack>
   getLanguage(): Promise<LanguageView>
   /** Changes the language, and with it the content: what comes back is the content as it reads in the new one. */

@@ -70,11 +70,11 @@ export function stopBirthControl(content: ContentPack, state: GameState, loveInt
 }
 
 /** Told to her: whether she will, and what she takes. Nothing about sex for a woman it is open to as it always was. */
-export function describeSexGate(content: ContentPack, state: GameState, li: Pick<LoveInterest, 'id' | 'traitIds'>, group = false, uninhibited = false): string[] {
+export function describeSexGate(content: ContentPack, state: GameState, li: Pick<LoveInterest, 'id' | 'traitIds'>, group = false, uninhibited = false, directives = true): string[] {
   const player = state.player.name
   const gate = sexGate(content, state, li, uninhibited)
   const control = onBirthControl(content, state, li.id)
-    ? t('scene.intimacy.onControl', { player, tag: OFF_CONTROL_TAG, group, groupTag: OFF_CONTROL_TAG.replace(']', ': Name]') })
+    ? (directives ? t('scene.intimacy.onControl', { player, tag: OFF_CONTROL_TAG, group, groupTag: OFF_CONTROL_TAG.replace(']', ': Name]') }) : t('scene.dual.onControl'))
     : t('scene.intimacy.offControl', { player })
   // Whatever of his is working on her is told to her as something she feels, not as something done to her.
   const charmed = liveBoons(state).filter((boon) => boon.targetId === li.id && boon.telling).map((boon) => boon.telling!)

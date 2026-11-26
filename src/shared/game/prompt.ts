@@ -65,6 +65,8 @@ const ONE_MOMENT = { creampie: 'creampie', facial: 'facial' }
 const lineRange = (range: { min: number; max: number }) => t('scene.prompt.lineRange', range)
 
 export interface PromptInput {
+  /** Writer retains scene context while Manager owns control syntax and tracking. */
+  output?: 'writer'
   content: ContentPack
   state: GameState
   loveInterestId: string
@@ -115,7 +117,7 @@ export interface PromptInput {
    * How the character appears in the current scene. When given, the prompt lists the
    * outfits, sprites and animations the LLM may switch to.
    */
-  look?: Pick<Scene, 'outfitId' | 'animationId' | 'animationOf'>
+  look?: Pick<Scene, 'outfitId' | 'expression' | 'animationId' | 'animationOf'>
   /** How the others in the scene appear, by id. */
   looks?: Scene['looks']
   /** How comfortable each love interest in the scene last said she was, by id. */
@@ -151,6 +153,7 @@ function labelled(label: string, value: string | string[]): Line {
 
 /** Builds the system prompt for the AI to speak as the given love interest right now. */
 export function buildCharacterPrompt(input: PromptInput): string {
+  const writer = input.output === 'writer'
   const { content, state, loveInterestId, recentText, codexBudgetChars, sceneBeats = [] } = input
   const li = content.loveInterests.find((c) => c.id === loveInterestId)
   if (!li) throw new Error(`Unknown love interest "${loveInterestId}"`)
@@ -392,7 +395,7 @@ export function buildCharacterPrompt(input: PromptInput): string {
           // Who will not, by name and before anything else, so that it is not lost among the lines written to each.
           ...(group ? cast.flatMap((c) => shutLine(content, state, c, input.uninhibited?.includes(c.id)) ?? []) : []),
           ...cast.flatMap((c) => {
-            const lines = describeSexGate(content, state, c, group, input.uninhibited?.includes(c.id))
+            const lines = describeSexGate(content, state, c, group, input.uninhibited?.includes(c.id), !writer)
             return group ? [t('scene.prompt.sex.for', { first: c.name.split(' ')[0] }), ...lines] : lines
           })
         ]
@@ -566,7 +569,13 @@ export function buildCharacterPrompt(input: PromptInput): string {
 
     section(t('scene.prompt.notes.title', { name: li.name }), [li.ai.extraInstructions]),
 
-    look &&
+    writer && look && !isNpc && section(t('scene.prompt.appear.title'), voices.map((c) => {
+      const current = c.id === li.id ? look : input.looks?.[c.id]
+      const worn = wornOutfit(content, state, c, current?.outfitId)
+      return t('scene.dual.appearance', { name: c.name, outfit: worn ? outfitDescription(c.outfits, worn) || worn.name : '', expression: current?.expression ?? 'neutral' })
+    })),
+
+    !writer && look &&
       !isNpc &&
       section(t('scene.prompt.appear.title'), [
         group
@@ -660,7 +669,7 @@ export function buildCharacterPrompt(input: PromptInput): string {
       !isNpc &&
       !byCourier &&
       section(group ? t('scene.prompt.comfort.titleGroup') : t('scene.prompt.comfort.title'), [
-        group
+        writer ? t('scene.dual.comfort') : group
           ? t('scene.prompt.comfort.lineGroup', { tags: voices.map((c) => `[COMFORT: ${c.name.split(' ')[0]}=4 ${t('scene.prompt.comfort.why')}]`).join(' ') })
           : t('scene.prompt.comfort.line', { tag: `[COMFORT: 4 ${t('scene.prompt.comfort.why')}]` }),
         t('scene.prompt.comfort.scale', { group, player: player.name, floor: skillLevel(content, state, 'comfort') === 2 }),
@@ -677,7 +686,7 @@ export function buildCharacterPrompt(input: PromptInput): string {
             .filter(Boolean)
             .join(' ')
         }),
-        group
+        !writer && (group
           ? t('scene.prompt.comfort.leaveGroup', {
               tag: `[LEAVES: Name=feeling ${t('scene.prompt.comfort.why')}]`,
               content: 'content',
@@ -686,8 +695,8 @@ export function buildCharacterPrompt(input: PromptInput): string {
               example: `[LEAVES: ${cast[1]?.name.split(' ')[0] ?? 'Name'}=hurt ${t('scene.prompt.comfort.leaveExample')}]`,
               other: `[LEAVES: Name=content ${t('scene.prompt.comfort.why')}]`
             })
-          : t('scene.prompt.comfort.leave'),
-        t('scene.prompt.comfort.never')
+          : t('scene.prompt.comfort.leave')),
+        !writer && t('scene.prompt.comfort.never')
       ]),
 
     !byCourier &&
@@ -713,7 +722,7 @@ export function buildCharacterPrompt(input: PromptInput): string {
 
     !byCourier &&
       sceneBeats.length > 0 &&
-      fertile.length > 0 &&
+      fertile.length > 0 && !writer &&
       section(t('scene.prompt.conception.title'), [
         t('scene.prompt.conception.sire', { player: player.name }),
         group
@@ -724,7 +733,7 @@ export function buildCharacterPrompt(input: PromptInput): string {
 
     !byCourier &&
       !isNpc &&
-      section(t('scene.prompt.meeting.title'), [
+      !writer && section(t('scene.prompt.meeting.title'), [
         t('scene.prompt.meeting.call', { player: player.name, tool: PROPOSE }),
         t('scene.prompt.meeting.args', { weekday: 'weekday', timeOfDay: 'time_of_day', nextWeek: 'next week', earliest: 'earliest' }),
         input.pendingProposal &&
@@ -749,7 +758,7 @@ export function buildCharacterPrompt(input: PromptInput): string {
     !byCourier &&
       !isNpc &&
       sceneBeats.length > 0 &&
-      section(t('scene.prompt.moving.title'), [
+      !writer && section(t('scene.prompt.moving.title'), [
         t('scene.prompt.moving.kept', { player: player.name, move: MOVE }),
         t('scene.prompt.moving.tools', { move: MOVE, propose: PROPOSE }),
         canSleepOver(content, state) && t('scene.prompt.moving.sleep', { player: player.name, tag: SLEEP_TAG }),
@@ -769,7 +778,7 @@ export function buildCharacterPrompt(input: PromptInput): string {
 
     sceneBeats.length > 0 &&
       section(t('scene.prompt.ending.title'), [
-        t('scene.prompt.ending.close', { group, tag: SCENE_END_TAG }),
+        !writer && t('scene.prompt.ending.close', { group, tag: SCENE_END_TAG }),
         t('scene.prompt.ending.when', { player: player.name }),
         input.windDown !== undefined &&
           (() => {
@@ -787,6 +796,7 @@ export function buildCharacterPrompt(input: PromptInput): string {
     // Repeated last, where it is least likely to be forgotten.
     byCourier
       ? t('scene.prompt.reminder.courier', { open: DM_OPEN, close: DM_CLOSE })
+      : writer ? t('scene.dual.reminder', { lines: lineRange(lecture ? LESSON_LINES : REPLY_LINES), words: lecture ? LESSON_WORDS : REPLY_WORDS, named })
       : t('scene.prompt.reminder.scene', {
           look: look !== undefined && !isNpc,
           expression: EXPRESSION_TAG,

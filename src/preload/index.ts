@@ -2,8 +2,12 @@ import { contextBridge, ipcRenderer, webFrame } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { RendererApi } from '../shared/types'
 import { createConnectionBridge } from './connections'
+import { createDualTurnBridge } from './dualTurn'
+import { createGenerationBridge } from './generation'
 
 const api: RendererApi = {
+  generation: createGenerationBridge((channel, ...args) => ipcRenderer.invoke(channel, ...args)),
+  dualTurn: createDualTurnBridge((channel, ...args) => ipcRenderer.invoke(channel, ...args)),
   getContent: () => ipcRenderer.invoke(IPC.getContent),
   getLanguage: () => ipcRenderer.invoke(IPC.getLanguage),
   setLanguage: (language) => ipcRenderer.invoke(IPC.setLanguage, language),

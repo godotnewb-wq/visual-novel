@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { GameState, Scene } from '../model'
+import { DualSceneGenerationSchema } from './dualTurnContract'
 
 /**
  * A turn the player has taken in a scene, kept so that it can be taken back: the line he
@@ -15,7 +16,11 @@ export interface Turn {
 export const MAX_TURNS_KEPT = 30
 
 // What reaches the player from outside the scene while it goes on (posts, messages). Taking a turn back does not undo these.
-const KEPT_ACROSS = ['feed', 'feedDay', 'feedPlans', 'courier', 'news', 'newsDay', 'newsPlan', 'newsReported', 'newsQueue'] as const
+export const KEPT_ACROSS = ['feed', 'feedDay', 'feedPlans', 'courier', 'news', 'newsDay', 'newsPlan', 'newsReported', 'newsQueue'] as const
+
+export function withBackground(state: GameState, current: GameState): GameState {
+  return { ...state, ...Object.fromEntries(KEPT_ACROSS.map((key) => [key, current[key]])) }
+}
 
 /**
  * A turn as it is written to a save. A turn changes little, so what is kept is only what
@@ -30,6 +35,10 @@ export const PackedTurnSchema = z.object({
   scene: z.record(z.string(), z.unknown()),
   /** Parts that the turn added, which were absent before it. */
   absent: z.object({ state: z.array(z.string()), scene: z.array(z.string()) })
+}).superRefine((turn, context) => {
+  if (turn.scene.generation !== undefined && !DualSceneGenerationSchema.safeParse(turn.scene.generation).success) {
+    context.addIssue({ code: 'custom', path: ['scene', 'generation'], message: 'Invalid saved turn metadata.' })
+  }
 })
 export type PackedTurn = z.infer<typeof PackedTurnSchema>
 
@@ -90,5 +99,5 @@ export function unpackTurns(packed: PackedTurn[], state: GameState, scene: Scene
  * player from outside the scene meanwhile is kept as it is now.
  */
 export function rewound(turn: Turn, current: GameState): GameState {
-  return { ...turn.state, ...Object.fromEntries(KEPT_ACROSS.map((key) => [key, current[key]])) }
+  return withBackground(turn.state, current)
 }

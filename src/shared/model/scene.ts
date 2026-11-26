@@ -6,6 +6,7 @@ import { SceneDramaSchema } from './drama'
 import { GiftReactionSchema } from './item'
 import { BondProposalSchema } from './relationship'
 import { RelationshipStateSchema } from './state'
+import { DualSceneGenerationSchema } from '../game/dualTurnContract'
 
 export const ChatMessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
@@ -114,6 +115,8 @@ export const ComfortSchema = z.object({
 export type Comfort = z.infer<typeof ComfortSchema>
 
 export const SceneSchema = z.object({
+  /** Absent on older saves and Legacy scenes. Only committed Dual turns update this metadata. */
+  generation: DualSceneGenerationSchema.optional(),
   /** The love interest the scene is with; in a group, the one who leads it. */
   loveInterestId: z.string(),
   /** The scene is with an NPC, not a love interest: `loveInterestId` is the NPC's id. */
@@ -190,5 +193,37 @@ export const SceneSchema = z.object({
   baseline: SceneBaselineSchema,
   /** Someone the drama engine has decided will turn up, or who already has. */
   drama: SceneDramaSchema.optional()
+}).superRefine((scene, context) => {
+  if (scene.generation?.mode !== 'dual') return
+  const length = scene.messages.length
+  const participants = new Set([scene.loveInterestId, ...scene.companionIds, ...scene.departed.map((departure) => departure.id)])
+  if (scene.generation.witnesses?.some((range) => !participants.has(range.actorId))
+    || scene.generation.beatWitnesses?.some((record) => record.witnessIds.some((id) => !participants.has(id)))) {
+    context.addIssue({ code: 'custom', path: ['generation', 'witnesses'], message: 'Unknown scene witness.' })
+  }
+  if (scene.generation.beatWitnesses?.some((record) => record.beatIndex >= scene.beats.length)
+    || new Set(scene.generation.beatWitnesses?.map((record) => record.beatIndex)).size !== (scene.generation.beatWitnesses?.length ?? 0)) {
+    context.addIssue({ code: 'custom', path: ['generation', 'beatWitnesses'], message: 'Invalid scene beat boundary.' })
+  }
+  for (const field of ['witnesses', 'turnHistory'] as const) {
+    const ranges = scene.generation[field] ?? []
+    if (ranges.some((range) => range.fromMessage > length || range.toMessage !== null && range.toMessage > length)) {
+      context.addIssue({ code: 'custom', path: ['generation', field], message: 'A message boundary is outside the saved conversation.' })
+    }
+  }
+  const byActor = new Map<string, { fromMessage: number; toMessage: number | null }[]>()
+  for (const range of scene.generation.witnesses ?? []) byActor.set(range.actorId, [...(byActor.get(range.actorId) ?? []), range])
+  for (const ranges of byActor.values()) {
+    const sorted = [...ranges].sort((one, two) => one.fromMessage - two.fromMessage)
+    if (sorted.some((range, index) => index > 0 && (sorted[index - 1].toMessage === null || sorted[index - 1].toMessage! > range.fromMessage))) {
+      context.addIssue({ code: 'custom', path: ['generation', 'witnesses'], message: 'Witness ranges overlap.' })
+    }
+  }
+  scene.generation.ledger.entries.forEach((entry, index) => entry.receipts.forEach((receipt, receiptIndex) => {
+    const message = scene.messages[receipt.messageIndex]
+    if (!message || message.role !== receipt.role || message.content.slice(receipt.start, receipt.end) !== receipt.quote) {
+      context.addIssue({ code: 'custom', path: ['generation', 'ledger', 'entries', index, 'receipts', receiptIndex], message: 'Note evidence does not match the saved message.' })
+    }
+  }))
 })
 export type Scene = z.infer<typeof SceneSchema>

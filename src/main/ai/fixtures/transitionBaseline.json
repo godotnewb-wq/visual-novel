@@ -1,0 +1,97 @@
+{
+  "provenance": "Synthetic P2.0 comparison cases, not captured provider output. The owner reported a standalone trailing command inside curly braces and no transition; its exact interior text is unknown.",
+  "scenarios": [
+    {
+      "id": "ordinary-brackets",
+      "responses": [{ "content": "I wrote [meet after class] in my notebook." }],
+      "visibleText": "I wrote [meet after class] in my notebook.",
+      "commandVisible": false,
+      "moveTo": null
+    },
+    {
+      "id": "closed-legacy-movement-tags",
+      "responses": [{ "content": "Come on, then.\n[MOVE: shop]\n[HOURS: 1]" }],
+      "visibleText": "Come on, then.",
+      "commandVisible": false,
+      "moveTo": null
+    },
+    {
+      "id": "full-width-legacy-movement-tags",
+      "responses": [{ "content": "Come on, then.\n［MOVE： shop］\n［HOURS： 1］" }],
+      "visibleText": "Come on, then.",
+      "commandVisible": false,
+      "moveTo": null
+    },
+    {
+      "id": "truncated-movement-tag",
+      "responses": [{ "content": "Come on, then.\n[MOVE: shop" }],
+      "visibleText": "Come on, then.\n[MOVE: shop",
+      "commandVisible": true,
+      "moveTo": null
+    },
+    {
+      "id": "curly-braced-tool-json-in-prose",
+      "responses": [{ "content": "Come on, then.\n{\"name\":\"move_scene\",\"arguments\":{\"place\":\"shop\"}}" }],
+      "visibleText": "Come on, then.\n{\"name\":\"move_scene\",\"arguments\":{\"place\":\"shop\"}}",
+      "commandVisible": true,
+      "moveTo": null
+    },
+    {
+      "id": "curly-braced-command-in-prose",
+      "responses": [{ "content": "Come on, then.\n{move_scene: shop}" }],
+      "visibleText": "Come on, then.\n{move_scene: shop}",
+      "commandVisible": true,
+      "moveTo": null
+    },
+    {
+      "id": "tool-command-in-prose",
+      "responses": [{ "content": "Come on, then.\nmove_scene({\"place\":\"shop\"})" }],
+      "visibleText": "Come on, then.\nmove_scene({\"place\":\"shop\"})",
+      "commandVisible": true,
+      "moveTo": null
+    },
+    {
+      "id": "tools-rejected-then-curly-command",
+      "responses": [
+        { "status": 400, "error": "tools are not supported" },
+        { "content": "Come on, then.\n{move_scene: shop}" }
+      ],
+      "visibleText": "Come on, then.\n{move_scene: shop}",
+      "commandVisible": true,
+      "moveTo": null
+    },
+    {
+      "id": "real-tool-call-with-intermediate-text",
+      "responses": [
+        {
+          "content": "{move_scene: shop}",
+          "tool_calls": [{ "id": "move-1", "type": "function", "function": { "name": "move_scene", "arguments": "{\"place\":\"shop\"}" } }]
+        },
+        { "content": "Here we are." }
+      ],
+      "visibleText": "Here we are.",
+      "commandVisible": false,
+      "moveTo": "shop"
+    },
+    {
+      "id": "real-tool-call-followed-by-leaked-text",
+      "responses": [
+        { "tool_calls": [{ "id": "move-2", "type": "function", "function": { "name": "move_scene", "arguments": "{\"place\":\"shop\"}" } }] },
+        { "content": "Here we are.\n{move_scene: shop}" }
+      ],
+      "visibleText": "Here we are.\n{move_scene: shop}",
+      "commandVisible": true,
+      "moveTo": "shop"
+    },
+    {
+      "id": "invalid-destination-tool-call",
+      "responses": [
+        { "tool_calls": [{ "id": "move-3", "type": "function", "function": { "name": "move_scene", "arguments": "{\"place\":\"missing-place\"}" } }] },
+        { "content": "Let's stay here." }
+      ],
+      "visibleText": "Let's stay here.",
+      "commandVisible": false,
+      "moveTo": null
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import { hiddenFacts } from './facts'
 import { RELATIONS, relationBetween, type Relation } from './rapport'
 import { t } from '../i18n'
 import { DEFAULT_MEMORY_RECALL } from '../settings'
+import { characterNotes, witnessedAt } from './encounterNotes'
 
 // Transcripts longer than this are trimmed from the start before summarising.
 const MAX_TRANSCRIPT_CHARS = 12000
@@ -51,8 +52,10 @@ export function buildSummaryPrompt(input: SummaryInput): { system: string; user:
   // Everyone else who was there, from this person's point of view.
   // Someone who left part-way remembers only what she was there for.
   const departure = scene.departed.find((d) => d.id === forId)
-  const heard = departure ? scene.messages.slice(0, departure.at) : scene.messages
-  const otherIds = sceneWitnesses(scene).filter((id) => id !== forId)
+  const heardIndexes = scene.generation?.mode === 'dual' ? scene.messages.flatMap((_message, index) => witnessedAt(scene, index).includes(forId) ? [index] : []) : undefined
+  const heard = heardIndexes ? heardIndexes.map((index) => scene.messages[index])
+    : departure ? scene.messages.slice(0, departure.at) : scene.messages
+  const otherIds = (heardIndexes ? [...new Set(heardIndexes.flatMap((index) => witnessedAt(scene, index)))] : sceneWitnesses(scene)).filter((id) => id !== forId)
   const group = otherIds.length > 0
   const others = group ? firstNames(content, otherIds) : ''
   const gifts = scene.gifts.filter((gift) => gift.recipientId === forId)
@@ -72,7 +75,7 @@ export function buildSummaryPrompt(input: SummaryInput): { system: string; user:
     others && t('scene.memory.others', { others, count: otherIds.length, name, player }),
     departure && t('scene.memory.left', { name, why: Boolean(departure.reason), reason: departure.reason, feeling: feelingWord(departure.feeling) }),
     ...scene.departed
-      .filter((d) => d.id !== forId && !departure)
+      .filter((d) => d.id !== forId && !departure && (!heardIndexes || otherIds.includes(d.id)))
       .map((d) => t('scene.memory.otherLeft', { name: firstNames(content, [d.id]), why: Boolean(d.reason), reason: d.reason })),
     t('scene.memory.endWith', { name }),
     t('scene.memory.noPreamble'),
@@ -140,7 +143,7 @@ export function buildSummaryPrompt(input: SummaryInput): { system: string; user:
     '',
     ...about,
     t('scene.memory.did'),
-    ...(scene.beats.length > 0
+    ...(heardIndexes ? [t('scene.dual.witnessedConversation')] : scene.beats.length > 0
       ? scene.beats.map((beat, i) => `${i + 1}. ${describeBeat(beat)}`)
       : [t('scene.memory.nothing')]),
     ...(gifts.length > 0
@@ -148,7 +151,8 @@ export function buildSummaryPrompt(input: SummaryInput): { system: string; user:
       : []),
     '',
     t('scene.memory.conversation'),
-    transcript || t('scene.memory.silent')
+    transcript || t('scene.memory.silent'),
+    ...(scene.generation?.mode === 'dual' && !scene.npc ? [t('scene.dual.noteContext'), JSON.stringify(characterNotes(content, scene, forId))] : [])
   ].join('\n')
 
   return { system, user }

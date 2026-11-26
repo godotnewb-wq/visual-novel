@@ -43,6 +43,8 @@ interface Props {
   ended: boolean
   /** Says a line, with what the game tells her beside it when it was one of the text box's suggestions. */
   onSend: (text: string, cue?: string) => void
+  onStopReply?: () => void
+  restoredInput?: { id: string; text: string }
   /** Ends a class or a shift at once, with nothing said, remembered or felt about it: what it earns is earned all the same. */
   onSkip: () => void
   /** Settles the name of the child just born: another than the one its mother thought of, or with nothing given, hers. */
@@ -161,6 +163,7 @@ export function SceneView(props: Props) {
     return tips.length > 0 ? tips[Math.floor(Math.random() * tips.length)] : ''
   })
   const [input, setInput] = useState('')
+  useEffect(() => { if (props.restoredInput) setInput(props.restoredInput.text) }, [props.restoredInput?.id])
   // The suggestion the line in the box was begun from, if it was.
   const [picked, setPicked] = useState<Suggestion | undefined>(undefined)
   // What the box can offer: the asks open to him now, the names to finish (only those in the scene), and the game's
@@ -268,7 +271,7 @@ export function SceneView(props: Props) {
   // As far back as there are turns of his that can be redone.
   const maxBack = busy || !reply ? 0 : Math.min(props.turnsKept, scene.messages.filter((m) => m.role === 'user').length)
   // The model his next line goes to, on Send's tooltip.
-  const { model, look: whichModel } = useModelName(scene.nsfw)
+  const { model, look: whichModel } = useModelName(scene.nsfw, scene.generation?.mode === 'dual')
   const back = current ? Math.min(progress.back, maxBack) : 0
   // The reply being looked at: the latest, or the one that stood before the turn he has gone back to.
   const viewIndex = lastIndex - 2 * back
@@ -601,6 +604,7 @@ export function SceneView(props: Props) {
                 {t('screens.sceneView.dice', { roll })}
               </p>
             ))}
+            {scene.generation?.mode === 'dual' && scene.generation.ledger.trackingLimited && <p className="status" role="status">{t('scene.dual.trackingLimited')}</p>}
             {!waiting && !more && back === 0 && props.learned.map((line) => (
               <p key={line} className="agreed">
                 {t('screens.sceneView.learned', { line })}
@@ -695,7 +699,8 @@ export function SceneView(props: Props) {
                     title={t('screens.sceneView.stopReply')}
                     className="icon"
                     onClick={() => {
-                      void window.api.cancelChat()
+                      if (props.onStopReply) props.onStopReply()
+                      else void window.api.cancelChat()
                       if (playerLine) setInput(playerLine.content)
                     }}
                   >
